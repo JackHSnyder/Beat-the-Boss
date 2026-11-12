@@ -25,10 +25,12 @@ namespace BeatTheBoss.Poses
         public InputMode Input { get => input; set => input = value; }
         public Transform TrackingSpace => cameraRig != null && cameraRig.trackingSpace != null
             ? cameraRig.trackingSpace : transform;
+        public Transform PlayerSpace => transform.parent != null ? transform.parent : transform;
 
         private void LateUpdate()
         {
             Frame.Clear(TrackingMode.None);
+            Frame.SetPlayerSpace(TrackingSpace, PlayerSpace);
             if (input == InputMode.Automatic && ReadBody())
                 return;
 
@@ -240,7 +242,7 @@ namespace BeatTheBoss.Poses
                     Quaternion reference = parent < 0 ? heading : poses[parent].rotation;
                     bool hasRotation = xr || id < (int)BoneId.Hand_MaxSkinnable;
                     frame.Add(new TrackedBone(ids[id], parent < 0 ? null : ids[(int)skeleton.Bones[parent].Id],
-                        branch, poses[index], Quaternion.Inverse(reference) * poses[index].rotation, hasRotation));
+                        branch, poses[index], Quaternion.Inverse(reference) * poses[index].rotation, hasRotation, hasRotation));
                     found = true;
                 }
                 return found;

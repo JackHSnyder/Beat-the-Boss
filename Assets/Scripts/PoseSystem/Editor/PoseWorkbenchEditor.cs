@@ -60,9 +60,14 @@ internal sealed class PoseWorkbenchEditor : Editor
             EditorGUILayout.LabelField("Loaded pose", workbench.LoadedPose.name);
             PoseMatcher.Result result = workbench.Match;
             string status = result.Missing > 0 ? "Tracking missing" :
-                result.Compared == 0 ? "No joints selected" : result.IsMatch ? "Match" : "Outside tolerance";
+                result.Compared == 0 && result.ConstraintCount == 0 ? "No checks selected" :
+                result.IsMatch ? "Match" : "Pose does not match";
             EditorGUILayout.HelpBox($"{status}\n{result.Compared} compared · {result.Missing} missing · " +
-                $"{result.OutsideTolerance} outside tolerance", result.IsMatch ? MessageType.Info : MessageType.Warning);
+                $"{result.OutsideTolerance} over individual limits", result.IsMatch ? MessageType.Info : MessageType.Warning);
+            if (result.FirstFailedCategory is PoseCategory failed)
+                EditorGUILayout.LabelField("Failed category", PoseMatchProfile.Label(failed));
+            if (result.ConstraintCount > 0)
+                EditorGUILayout.LabelField("Constraints", $"{result.PassedConstraints}/{result.ConstraintCount} passing");
             if (result.WorstJoint != null)
                 EditorGUILayout.LabelField($"Largest error: {result.WorstError:F1}°", result.WorstJoint);
             if (result.FirstMissingJoint != null)

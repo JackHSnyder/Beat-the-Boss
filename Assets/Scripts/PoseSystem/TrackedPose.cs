@@ -17,9 +17,10 @@ namespace BeatTheBoss.Poses
         public readonly Pose TrackingPose;
         public readonly Quaternion LocalRotation;
         public readonly bool HasLocalRotation;
+        public readonly bool HasTrackingRotation;
 
         public TrackedBone(string id, string parentId, PoseBranches branch, Pose trackingPose,
-            Quaternion localRotation, bool hasLocalRotation = true)
+            Quaternion localRotation, bool hasLocalRotation = true, bool hasTrackingRotation = true)
         {
             Id = id;
             ParentId = parentId;
@@ -27,12 +28,15 @@ namespace BeatTheBoss.Poses
             TrackingPose = trackingPose;
             LocalRotation = localRotation;
             HasLocalRotation = hasLocalRotation;
+            HasTrackingRotation = hasTrackingRotation;
         }
     }
 
     public sealed class TrackedPose
     {
         private readonly Dictionary<string, TrackedBone> bones = new(StringComparer.Ordinal);
+        private Matrix4x4 playerFromTracking = Matrix4x4.identity;
+        private Quaternion playerFromTrackingRotation = Quaternion.identity;
         public IReadOnlyDictionary<string, TrackedBone> Bones => bones;
         public TrackingMode Mode { get; private set; }
 
@@ -44,6 +48,24 @@ namespace BeatTheBoss.Poses
 
         public void Add(TrackedBone bone) => bones[bone.Id] = bone;
         public bool TryGet(string id, out TrackedBone bone) => bones.TryGetValue(id, out bone);
+
+        public void SetPlayerSpace(Transform trackingSpace, Transform player)
+        {
+            playerFromTracking = player.worldToLocalMatrix * trackingSpace.localToWorldMatrix;
+            playerFromTrackingRotation = Quaternion.Inverse(player.rotation) * trackingSpace.rotation;
+        }
+
+        public bool TryGetPlayerPose(string id, out Pose pose, out bool hasOrientation)
+        {
+            pose = default;
+            hasOrientation = false;
+            if (string.IsNullOrEmpty(id) || !TryGet(id, out TrackedBone bone))
+                return false;
+            pose = new Pose(playerFromTracking.MultiplyPoint3x4(bone.TrackingPose.position),
+                playerFromTrackingRotation * bone.TrackingPose.rotation);
+            hasOrientation = bone.HasTrackingRotation;
+            return true;
+        }
     }
 
     [Serializable]
@@ -54,6 +76,7 @@ namespace BeatTheBoss.Poses
         public TrackingMode mode;
         public PoseJoint[] joints;
         public AvatarSnapshot avatar;
+        public PoseMatchSettings matchSettings;
 
         public static SavedPose Capture(string name, TrackedPose frame, AvatarSnapshot avatar)
         {

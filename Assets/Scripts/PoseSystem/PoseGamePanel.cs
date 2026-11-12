@@ -33,9 +33,15 @@ namespace BeatTheBoss.Poses
         private RectTransform panel;
         private RectTransform posePage;
         private RectTransform settingsPage;
+        private RectTransform matchPage;
+        private RectTransform constraintPage;
         private RectTransform keyboardPage;
         private Text poseTab;
         private Text settingsTab;
+        private Text matchTab;
+        private Text constraintTab;
+        private PoseMatchPanel matchPanel;
+        private PoseConstraintPanel constraintPanel;
         private Text tracking;
         private Text footer;
         private Text recenter;
@@ -146,14 +152,20 @@ namespace BeatTheBoss.Poses
             tracking = layout.Label(panel, "", 24, 58, 632, 28);
             tracking.color = PosePanelLayout.Muted;
             poseTab = layout.Button(panel, "Poses", 24, 96, 148, 42, () => SelectPage(posePage));
-            settingsTab = layout.Button(panel, "Settings", 182, 96, 148, 42, () => SelectPage(settingsPage));
+            matchTab = layout.Button(panel, "Matching", 182, 96, 148, 42, () => SelectPage(matchPage));
+            settingsTab = layout.Button(panel, "Settings", 340, 96, 148, 42, () => SelectPage(settingsPage));
+            constraintTab = layout.Button(panel, "Constraints", 498, 96, 158, 42, () => SelectPage(constraintPage));
             footer = layout.Label(panel, "", 24, 589, 632, 46, 17);
             footer.color = PosePanelLayout.Muted;
 
             posePage = layout.Rect(panel, "Poses page", 24, 150, 632, 432);
+            matchPage = layout.Rect(panel, "Matching page", 24, 150, 632, 436);
+            constraintPage = layout.Rect(panel, "Constraints page", 24, 150, 632, 436);
             settingsPage = layout.Rect(panel, "Settings page", 24, 150, 632, 432);
             keyboardPage = layout.Rect(panel, "Pose name keyboard", 24, 150, 632, 432);
             BuildPosePage();
+            matchPanel = new PoseMatchPanel(workbench, layout, matchPage);
+            constraintPanel = new PoseConstraintPanel(workbench, layout, constraintPage);
             BuildSettingsPage();
             BuildKeyboard();
         }
@@ -199,12 +211,12 @@ namespace BeatTheBoss.Poses
             layout.Label(settingsPage, "Tracking input", 0, 0, 218, 46);
             input = layout.Button(settingsPage, "Automatic", 218, 0, 414, 46, CycleInput);
 
-            layout.Label(settingsPage, "Match tolerance", 0, 56, 218, 46);
+            layout.Label(settingsPage, "Fallback tolerance", 0, 56, 218, 46);
             toleranceSlider = layout.Slider(settingsPage, "Tolerance", 218, 56, 326, 0, 180,
                 value => workbench.ToleranceDegrees = value);
             tolerance = layout.Label(settingsPage, "", 558, 56, 74, 46);
 
-            layout.Label(settingsPage, "Ignore branches", 0, 112, 218, 46);
+            layout.Label(settingsPage, "Session hand mask", 0, 112, 218, 46);
             leftHand = layout.Button(settingsPage, "Left hand included", 218, 112, 200, 46, () => ToggleHand(PoseBranches.LeftHand));
             rightHand = layout.Button(settingsPage, "Right hand included", 432, 112, 200, 46, () => ToggleHand(PoseBranches.RightHand));
 
@@ -343,9 +355,13 @@ namespace BeatTheBoss.Poses
         private void SelectPage(RectTransform page)
         {
             posePage.gameObject.SetActive(page == posePage);
+            matchPage.gameObject.SetActive(page == matchPage);
+            constraintPage.gameObject.SetActive(page == constraintPage);
             settingsPage.gameObject.SetActive(page == settingsPage);
             keyboardPage.gameObject.SetActive(page == keyboardPage);
-            poseTab.color = page == settingsPage ? PosePanelLayout.Muted : PosePanelLayout.Accent;
+            poseTab.color = page == posePage || page == keyboardPage ? PosePanelLayout.Accent : PosePanelLayout.Muted;
+            matchTab.color = page == matchPage ? PosePanelLayout.Accent : PosePanelLayout.Muted;
+            constraintTab.color = page == constraintPage ? PosePanelLayout.Accent : PosePanelLayout.Muted;
             settingsTab.color = page == settingsPage ? PosePanelLayout.Accent : PosePanelLayout.Muted;
             UpdateLabels();
         }
@@ -442,6 +458,12 @@ namespace BeatTheBoss.Poses
         {
             TrackedPose current = workbench.CurrentFrame;
             tracking.text = $"{TrackingLabel(current.Mode)}  ·  {current.Bones.Count} joints";
+            if ((matchPage.gameObject.activeSelf || constraintPage.gameObject.activeSelf) && workbench.LoadedPose != null)
+            {
+                tracking.text += $"  ·  {MatchLabel(workbench.Match)}";
+                if (workbench.MatchProfile.IsDirty)
+                    tracking.text += "  ·  Unsaved";
+            }
             footer.text = workbench.CapturePending ? $"Capturing in {workbench.CaptureIn:F1}s" : workbench.Status;
             string name = workbench.CaptureName;
             if (!desktopName.isFocused)
@@ -476,6 +498,10 @@ namespace BeatTheBoss.Poses
             previewOffsets[2].text = $"Z {workbench.PreviewOffset.z:0.0}";
             openFolder.interactable = savedPoses.Length > 0;
             UpdateMatch();
+            if (matchPage.gameObject.activeSelf)
+                matchPanel.Refresh();
+            if (constraintPage.gameObject.activeSelf)
+                constraintPanel.Refresh();
         }
 
         private string HandLabel(string hand, PoseBranches branch) =>
@@ -492,17 +518,24 @@ namespace BeatTheBoss.Poses
             }
 
             PoseMatcher.Result result = workbench.Match;
-            string state = result.Missing > 0 ? "Tracking missing" : result.Compared == 0 ? "No joints selected" :
-                result.IsMatch ? "Match" : "Outside tolerance";
+            string state = MatchLabel(result);
             match.text = $"{state}  ·  {workbench.LoadedPose.name}";
             match.color = result.IsMatch ? PosePanelLayout.Accent : PosePanelLayout.Warning;
-            string detail = $"{result.Compared} compared  ·  {result.Missing} missing  ·  {result.OutsideTolerance} outside tolerance";
-            if (result.WorstJoint != null)
-                detail += $"\nLargest error {result.WorstError:F1}°  ·  {result.WorstJoint}";
+            string detail = $"{result.Compared} compared  ·  {result.Missing} missing  ·  {result.OutsideTolerance} over individual limits";
+            if (result.ConstraintCount > 0)
+                detail += $"\nConstraints  ·  {result.PassedConstraints}/{result.ConstraintCount} passing";
+            if (result.FirstFailedCategory is PoseCategory failed)
+                detail += $"\nFailed category  ·  {PoseMatchProfile.Label(failed)}";
             if (result.FirstMissingJoint != null)
                 detail += $"\nFirst missing  ·  {result.FirstMissingJoint}";
+            else if (result.ConstraintCount == 0 && result.WorstJoint != null)
+                detail += $"\nLargest error {result.WorstError:F1}°  ·  {result.WorstJoint}";
             matchDetails.text = detail;
         }
+
+        private static string MatchLabel(PoseMatcher.Result result) => result.Missing > 0 ? "Tracking missing" :
+            result.Compared == 0 && result.ConstraintCount == 0 ? "No checks selected" : result.IsMatch ? "Match" :
+            result.PassedConstraints < result.ConstraintCount ? $"Constraint {result.FirstFailedConstraint + 1} failed" : "Outside tolerance";
 
         private static string TrackingLabel(TrackingMode mode) => mode switch
         {

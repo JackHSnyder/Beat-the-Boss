@@ -27,14 +27,29 @@ namespace BeatTheBoss.Poses
         public void Save(SavedPose pose)
         {
             Validate(pose);
-            string path = PathFor(pose.name);
+            ValidateConstraints(pose.matchSettings);
+            Write(PathFor(pose.name), pose, replace: false);
+        }
+
+        public void SaveMatchSettings(string name, PoseMatchSettings settings)
+        {
+            SavedPose pose = Load(name);
+            ValidateConstraints(settings);
+            pose.matchSettings = settings;
+            Write(PathFor(name), pose, replace: true);
+        }
+
+        private void Write(string path, SavedPose pose, bool replace)
+        {
             Directory.CreateDirectory(directory);
             string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try
             {
                 File.WriteAllText(temporary, JsonUtility.ToJson(pose, true));
-                // Named captures are unique. Moving the finished file also avoids partial saves.
-                File.Move(temporary, path);
+                if (replace)
+                    File.Replace(temporary, path, null);
+                else
+                    File.Move(temporary, path);
             }
             finally
             {
@@ -88,5 +103,16 @@ namespace BeatTheBoss.Poses
 
         private static bool IsRotation(Quaternion rotation) =>
             Mathf.Abs(Quaternion.Dot(rotation, rotation) - 1f) < 0.01f;
+
+        private static void ValidateConstraints(PoseMatchSettings settings)
+        {
+            if (settings?.constraints == null)
+                return;
+            for (int i = 0; i < settings.constraints.Length; i++)
+            {
+                if (!settings.constraints[i].IsValid)
+                    throw new InvalidDataException($"Complete constraint {i + 1} before saving.");
+            }
+        }
     }
 }

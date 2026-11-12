@@ -28,11 +28,13 @@ namespace BeatTheBoss.Poses
         private bool retargeterWasEnabled;
         private bool showingDevicePose;
         private float testBend;
+        private string loadedFileName;
 
         public string PoseDirectory => Path.Combine(Application.persistentDataPath, "Poses");
         public string Status { get; private set; } = "Ready.";
         public TrackedPose CurrentFrame => modelTest ? testFrame : tracker.Frame;
         public SavedPose LoadedPose { get; private set; }
+        public PoseMatchProfile MatchProfile { get; private set; }
         public PoseMatcher.Result Match { get; private set; }
         public GameObject Preview => preview;
         public bool ModelTest => modelTest;
@@ -66,6 +68,7 @@ namespace BeatTheBoss.Poses
             if (modelTest)
             {
                 rig.ReadModelTest(testFrame);
+                testFrame.SetPlayerSpace(rig.Root, tracker.PlayerSpace);
             }
             else if (tracker.Frame.Mode == TrackingMode.Devices)
             {
@@ -86,12 +89,14 @@ namespace BeatTheBoss.Poses
                 SaveCurrent(name);
             }
 
-            if (LoadedPose != null)
-                Match = PoseMatcher.Compare(CurrentFrame, LoadedPose, toleranceDegrees, ignoreBranches);
+            if (MatchProfile != null)
+                Match = PoseMatcher.Compare(CurrentFrame, MatchProfile, toleranceDegrees, ignoreBranches);
         }
 
         public void QueueCapture(string poseName, float delaySeconds)
         {
+            if (HasUnsavedSettings())
+                return;
             pendingName = (poseName ?? "").Trim();
             captureTime = Time.unscaledTime + Mathf.Max(0, delaySeconds);
             Status = "Capture queued.";
@@ -112,16 +117,61 @@ namespace BeatTheBoss.Poses
 
         public void Load(string name)
         {
+            if (HasUnsavedSettings())
+                return;
             try
             {
-                LoadedPose = store.Load(name);
-                HidePreview();
+                SetLoadedPose(name, store.Load(name));
                 Status = "Loaded " + LoadedPose.name + ".";
             }
             catch (Exception error) when (IsFileError(error))
             {
                 Status = "Could not load pose. " + error.Message;
             }
+        }
+
+        public void SaveMatchSettings()
+        {
+            if (MatchProfile == null || !MatchProfile.IsDirty)
+                return;
+
+            try
+            {
+                PoseMatchSettings settings = MatchProfile.Export();
+                store.SaveMatchSettings(loadedFileName, settings);
+                LoadedPose.matchSettings = settings;
+                MatchProfile.MarkSaved();
+                Status = "Saved matching settings for " + LoadedPose.name + ".";
+            }
+            catch (Exception error) when (IsFileError(error))
+            {
+                Status = "Could not save matching settings. " + error.Message;
+            }
+        }
+
+        public void RevertMatchSettings()
+        {
+            if (MatchProfile == null || !MatchProfile.IsDirty)
+                return;
+            MatchProfile = new PoseMatchProfile(LoadedPose);
+            Status = "Restored the saved matching settings.";
+        }
+
+        private void SetLoadedPose(string fileName, SavedPose pose)
+        {
+            var profile = new PoseMatchProfile(pose);
+            LoadedPose = pose;
+            loadedFileName = fileName;
+            MatchProfile = profile;
+            HidePreview();
+        }
+
+        private bool HasUnsavedSettings()
+        {
+            if (MatchProfile?.IsDirty != true)
+                return false;
+            Status = "Save or revert your matching edits before changing poses.";
+            return true;
         }
 
         public void SetModelTest(bool enabled)
@@ -235,6 +285,8 @@ namespace BeatTheBoss.Poses
 
         private void SaveCurrent(string name)
         {
+            if (HasUnsavedSettings())
+                return;
             if (CurrentFrame.Bones.Count == 0)
             {
                 Status = "Nothing to capture. Wait for tracking or enable model test input.";
@@ -250,8 +302,7 @@ namespace BeatTheBoss.Poses
             {
                 SavedPose captured = SavedPose.Capture(name, CurrentFrame, rig.Capture());
                 store.Save(captured);
-                LoadedPose = captured;
-                HidePreview();
+                SetLoadedPose(name, captured);
                 Status = $"Saved {captured.name} with {captured.joints.Length} joints.";
             }
             catch (Exception error) when (IsFileError(error))
