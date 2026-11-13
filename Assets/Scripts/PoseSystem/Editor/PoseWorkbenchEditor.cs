@@ -9,6 +9,7 @@ internal sealed class PoseWorkbenchEditor : Editor
     private int selected;
     private SavedPose lastLoaded;
 
+    // The Inspector reads live tracking and match results while the scene is running.
     public override bool RequiresConstantRepaint() => Application.isPlaying;
 
     public override void OnInspectorGUI()
@@ -88,6 +89,8 @@ internal sealed class PoseWorkbenchEditor : Editor
         }
 
         EditorGUILayout.HelpBox(workbench.Status, MessageType.None);
+        if (workbench.LegacyPoseName != null && GUILayout.Button("Recapture old pose"))
+            workbench.RecaptureLegacyPose();
         if (GUILayout.Button("Open pose folder"))
             EditorUtility.RevealInFinder(workbench.PoseDirectory);
     }

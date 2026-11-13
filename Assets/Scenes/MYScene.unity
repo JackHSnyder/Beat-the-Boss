@@ -1073,6 +1073,7 @@ GameObject:
   - component: {fileID: 917472192}
   - component: {fileID: 917472196}
   - component: {fileID: 917472197}
+  - component: {fileID: 917472198}
   m_Layer: 0
   m_Name: '[BuildingBlock] Camera Rig'
   m_TagString: Untagged
@@ -1274,7 +1275,6 @@ MonoBehaviour:
   tracker: {fileID: 917472192}
   avatar: {fileID: 77630972}
   toleranceDegrees: 15
-  ignoreBranches: 0
   previewOffset: {x: 1.6, y: 0, z: 1.5}
 --- !u!114 &917472197
 MonoBehaviour:
@@ -1290,6 +1290,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::BeatTheBoss.Poses.PoseGamePanel
   workbench: {fileID: 917472196}
   headsetCamera: {fileID: 0}
+--- !u!114 &917472198
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 917472189}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 80966e357f3c422393c1360caab2ea29, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::BeatTheBoss.Poses.MoveWorkbench
 --- !u!1 &978194273
 GameObject:
   m_ObjectHideFlags: 0
