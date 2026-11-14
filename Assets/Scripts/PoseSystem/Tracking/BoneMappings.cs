@@ -1,3 +1,6 @@
+// Maps source tracking points and avatar joints to universal bone IDs, and stores custom assignments and calibration.
+// PlayerPoseTracker uses it to build frames. AvatarPoseRig uses its avatar bindings, and TrackingMapPanel edits assignments.
+
 using System;
 using System.Collections.Generic;
 using System.IO;

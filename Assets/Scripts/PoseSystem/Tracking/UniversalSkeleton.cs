@@ -1,3 +1,6 @@
+// Defines the shared bone IDs, parent hierarchy, and categories for every tracking source.
+// BoneMappings and PlayerPoseTracker use it to build frames. PoseMatchProfile uses it to group joints for matching.
+
 using System;
 using System.Collections.Generic;
 

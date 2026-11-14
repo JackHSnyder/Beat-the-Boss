@@ -1,3 +1,6 @@
+// Defines live bone samples and frames, plus the serializable joint data used for saved poses.
+// PlayerPoseTracker fills the live frame. PoseStore handles saved poses, and the matchers use both forms.
+
 using System;
 using System.Collections.Generic;
 using UnityEngine;

@@ -1,3 +1,6 @@
+// Keeps timestamped samples for bones used in move actions and measures velocity over each action's window.
+// MoveDetector uses it to evaluate position and rotation actions.
+
 using System;
 using System.Collections.Generic;
 using UnityEngine;

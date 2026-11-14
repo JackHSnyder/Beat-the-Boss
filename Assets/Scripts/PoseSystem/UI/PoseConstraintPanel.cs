@@ -1,5 +1,9 @@
+// Builds the in-game editor for position and direction constraints, including category-based bone selection.
+// PoseGamePanel hosts it, and it edits the loaded pose's PoseMatchProfile.
+
 using System;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -12,21 +16,21 @@ namespace BeatTheBoss.Poses
         private readonly RectTransform list;
         private readonly RectTransform detail;
         private readonly RectTransform picker;
-        private readonly Text summary;
-        private readonly Text[] rules = new Text[RowsPerPage];
-        private readonly Text[] choices = new Text[RowsPerPage];
+        private readonly TMP_Text summary;
+        private readonly TMP_Text[] rules = new TMP_Text[RowsPerPage];
+        private readonly TMP_Text[] choices = new TMP_Text[RowsPerPage];
         private readonly List<(PoseCategory? category, string boneId)> choicesInCategory = new();
         private readonly List<string>[] bonesByCategory = new List<string>[PoseMatchProfile.CategoryCount];
         private readonly int[] categoryCounts = new int[PoseMatchProfile.CategoryCount];
-        private readonly Text pickerHeading;
-        private readonly Text type;
-        private readonly Text source;
-        private readonly Text target;
-        private readonly Text sourceAxis;
-        private readonly Text targetAxis;
-        private readonly Text error;
-        private readonly Text limit;
-        private readonly Text[] coordinates = new Text[3];
+        private readonly TMP_Text pickerHeading;
+        private readonly TMP_Text type;
+        private readonly TMP_Text source;
+        private readonly TMP_Text target;
+        private readonly TMP_Text sourceAxis;
+        private readonly TMP_Text targetAxis;
+        private readonly TMP_Text error;
+        private readonly TMP_Text limit;
+        private readonly TMP_Text[] coordinates = new TMP_Text[3];
         private readonly RectTransform axes;
         private readonly RectTransform point;
         private readonly Button useLive;
@@ -59,9 +63,9 @@ namespace BeatTheBoss.Poses
                     selected = rulePage * RowsPerPage + row;
                     Refresh();
                 });
-                rules[i].alignment = TextAnchor.MiddleLeft;
+                rules[i].alignment = TextAlignmentOptions.MidlineLeft;
                 choices[i] = layout.Button(picker, "", 0, 56 + i * 53, 632, 46, () => PickBone(row));
-                choices[i].alignment = TextAnchor.MiddleLeft;
+                choices[i].alignment = TextAlignmentOptions.MidlineLeft;
             }
             rulePager = new Pager(layout, list, change => { rulePage += change; Refresh(); });
             bonePager = new Pager(layout, picker, change => { bonePage += change; Refresh(); });
@@ -94,7 +98,7 @@ namespace BeatTheBoss.Poses
                 float x = axis * 213;
                 layout.Button(point, "−", x, 51, 44, 42, () => ChangePoint(index, -0.05f));
                 coordinates[axis] = layout.Label(point, "", x + 48, 51, 108, 42, 17);
-                coordinates[axis].alignment = TextAnchor.MiddleCenter;
+                coordinates[axis].alignment = TextAlignmentOptions.Midline;
                 layout.Button(point, "+", x + 160, 51, 44, 42, () => ChangePoint(index, 0.05f));
             }
 
@@ -102,7 +106,7 @@ namespace BeatTheBoss.Poses
             layout.Button(detail, "− coarse", 120, 270, 100, 42, () => ChangeLimit(-1, true));
             layout.Button(detail, "−", 228, 270, 46, 42, () => ChangeLimit(-1, false));
             limit = layout.Label(detail, "", 280, 270, 191, 42);
-            limit.alignment = TextAnchor.MiddleCenter;
+            limit.alignment = TextAlignmentOptions.Midline;
             layout.Button(detail, "+", 477, 270, 46, 42, () => ChangeLimit(1, false));
             layout.Button(detail, "+ coarse", 531, 270, 101, 42, () => ChangeLimit(1, true));
             error = layout.Label(detail, "", 0, 327, 632, 49, 19, true);
@@ -330,11 +334,11 @@ namespace BeatTheBoss.Poses
         }
 
         private static string BoneLabel(string id) => string.IsNullOrEmpty(id) ? "Player space" : id;
-        private static Button ButtonFor(Text label) => label.GetComponentInParent<Button>(true);
+        private static Button ButtonFor(TMP_Text label) => label.GetComponentInParent<Button>(true);
 
-        private static void ShowRow(Text row, bool visible, string label)
+        private static void ShowRow(TMP_Text row, bool visible, string label)
         {
-            row.transform.parent.gameObject.SetActive(visible);
+            row.GetComponentInParent<Button>(true).gameObject.SetActive(visible);
             if (visible)
                 row.text = "  " + label + "  ›";
         }
@@ -352,14 +356,14 @@ namespace BeatTheBoss.Poses
         {
             private readonly Button previous;
             private readonly Button next;
-            private readonly Text text;
+            private readonly TMP_Text text;
 
             public Pager(PosePanelLayout layout, Transform root, Action<int> move)
             {
                 previous = ButtonFor(layout.Button(root, "‹", 0, 329, 66, 42, () => move(-1)));
                 next = ButtonFor(layout.Button(root, "›", 566, 329, 66, 42, () => move(1)));
                 text = layout.Label(root, "", 81, 329, 470, 42, 17);
-                text.alignment = TextAnchor.MiddleCenter;
+                text.alignment = TextAlignmentOptions.Midline;
             }
 
             public int Show(int page, int entries)

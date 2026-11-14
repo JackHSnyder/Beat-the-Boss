@@ -1,5 +1,9 @@
+// Builds the in-game controls for editing and testing move sequences, action sets, and timers.
+// PoseGamePanel hosts it, and MoveWorkbench handles drafts and test runs.
+
 using System;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -13,7 +17,7 @@ namespace BeatTheBoss.Poses
         private readonly PoseWorkbench poses;
         private readonly Action<string, string, Action<string>> editName;
         private RectTransform content;
-        private Text status;
+        private TMP_Text status;
         private int stepIndex = -1;
         private int actionIndex = -1;
         private int stepPage;
@@ -326,8 +330,8 @@ namespace BeatTheBoss.Poses
                 layout.Label(content, label, 0, y, 232, 40);
             Button("−−", 261, y, 57, () => { change(-coarse); Draw(); });
             Button("−", 326, y, 45, () => { change(-fine); Draw(); });
-            Text number = layout.Label(content, value, 377, y, 137, 40, 18);
-            number.alignment = TextAnchor.MiddleCenter;
+            TMP_Text number = layout.Label(content, value, 377, y, 137, 40, 18);
+            number.alignment = TextAlignmentOptions.Midline;
             Button("+", 522, y, 45, () => { change(fine); Draw(); });
             Button("++", 575, y, 57, () => { change(coarse); Draw(); });
         }

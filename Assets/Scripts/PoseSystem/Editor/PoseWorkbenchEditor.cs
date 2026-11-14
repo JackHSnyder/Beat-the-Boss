@@ -1,3 +1,5 @@
+// Adds recording, preview, and matching controls to the Unity Inspector for PoseWorkbench.
+
 using BeatTheBoss.Poses;
 using UnityEditor;
 using UnityEngine;

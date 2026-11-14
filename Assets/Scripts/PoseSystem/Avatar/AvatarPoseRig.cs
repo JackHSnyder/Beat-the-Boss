@@ -1,3 +1,6 @@
+// Maps universal bone motion onto the avatar rig while preserving its bind transforms.
+// PlayerAvatarDriver uses it for live animation. PoseWorkbench uses it for model tests and saved pose previews.
+
 using System;
 using System.Collections.Generic;
 using Meta.XR.Movement.Retargeting;

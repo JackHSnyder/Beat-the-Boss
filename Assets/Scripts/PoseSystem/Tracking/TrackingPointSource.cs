@@ -1,3 +1,6 @@
+// Defines the interface and buffer for submitting raw tracking points before universal bone mapping.
+// PlayerPoseTracker collects points through it. External tracking adapters can implement ITrackingPointSource.
+
 using System;
 using System.Collections.Generic;
 using UnityEngine;

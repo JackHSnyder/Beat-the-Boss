@@ -1,6 +1,10 @@
+// Builds the in-game controls for inspecting tracking points and editing their universal bone assignments.
+// PoseGamePanel hosts it, and it uses PlayerPoseTracker to access the current points and mappings.
+
 using System;
 using System.Collections.Generic;
 using System.IO;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -10,13 +14,13 @@ namespace BeatTheBoss.Poses
     {
         private const int PageSize = 5;
         private readonly PlayerPoseTracker tracker;
-        private readonly Text[] rows = new Text[PageSize];
+        private readonly TMP_Text[] rows = new TMP_Text[PageSize];
         private readonly List<string> points = new();
         private readonly HashSet<string> seen = new(StringComparer.Ordinal);
         private readonly List<(string label, string bone, PoseCategory? group)> choices = new();
-        private readonly Text heading;
-        private readonly Text feedback;
-        private readonly Text pageLabel;
+        private readonly TMP_Text heading;
+        private readonly TMP_Text feedback;
+        private readonly TMP_Text pageLabel;
         private readonly Button back;
         private readonly Button next;
         private readonly Button previous;
@@ -39,12 +43,12 @@ namespace BeatTheBoss.Poses
             {
                 int index = i;
                 rows[i] = layout.Button(root, "", 0, 50 + 49 * i, 632, 43, () => Select(index));
-                rows[i].alignment = TextAnchor.MiddleLeft;
+                rows[i].alignment = TextAlignmentOptions.MidlineLeft;
             }
             previous = Button(layout.Button(root, "‹", 0, 300, 62, 42, () => { page--; Refresh(); }));
             next = Button(layout.Button(root, "›", 570, 300, 62, 42, () => { page++; Refresh(); }));
             pageLabel = layout.Label(root, "", 75, 300, 482, 42);
-            pageLabel.alignment = TextAnchor.MiddleCenter;
+            pageLabel.alignment = TextAlignmentOptions.Midline;
             assign = Button(layout.Button(root, "Assign bone", 0, 349, 193, 42, BeginAssignment));
             reset = Button(layout.Button(root, "Reset point", 206, 349, 193, 42, Reset));
             calibrate = Button(layout.Button(root, "Set neutral here", 412, 349, 220, 42, Calibrate));
@@ -90,7 +94,7 @@ namespace BeatTheBoss.Poses
             for (int i = 0; i < rows.Length; i++)
             {
                 int index = page * PageSize + i;
-                rows[i].transform.parent.gameObject.SetActive(index < count);
+                rows[i].GetComponentInParent<Button>(true).gameObject.SetActive(index < count);
                 if (index >= count)
                     continue;
                 string label;
@@ -199,6 +203,6 @@ namespace BeatTheBoss.Poses
             Refresh();
         }
 
-        private static Button Button(Text label) => label.GetComponentInParent<Button>(true);
+        private static Button Button(TMP_Text label) => label.GetComponentInParent<Button>(true);
     }
 }

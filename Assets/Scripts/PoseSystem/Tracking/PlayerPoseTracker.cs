@@ -1,3 +1,6 @@
+// Collects Meta and external tracking points and publishes a live frame using universal bone IDs.
+// PlayerAvatarDriver animates from that frame. PoseWorkbench and MoveDetection use it for matching.
+
 using System;
 using System.Collections.Generic;
 using System.IO;

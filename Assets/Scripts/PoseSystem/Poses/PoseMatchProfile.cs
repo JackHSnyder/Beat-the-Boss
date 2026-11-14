@@ -1,3 +1,6 @@
+// Keeps a saved pose's editable matching settings, including category rules, per-bone overrides, and constraints.
+// PoseWorkbench and MoveDetector give profiles to PoseMatcher. The matching and constraint panels edit them.
+
 using System;
 using System.Collections.Generic;
 using System.Linq;

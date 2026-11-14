@@ -1,3 +1,6 @@
+// Manages move drafts, saved move files, and test runs in the recording scene.
+// MovePanel calls it to edit and test moves. PoseWorkbench supplies the current tracking or model-test frame.
+
 using System;
 using System.IO;
 using UnityEngine;
@@ -8,8 +11,6 @@ namespace BeatTheBoss.Poses
     [RequireComponent(typeof(PoseWorkbench))]
     public sealed class MoveWorkbench : MonoBehaviour
     {
-        private const string Prefix = "move-";
-        private string DirectoryPath => Path.Combine(Application.persistentDataPath, "Moves");
         private PoseStore poses;
         private PoseWorkbench workbench;
         private string loadedName;
@@ -57,7 +58,7 @@ namespace BeatTheBoss.Poses
 
         public string[] ListMoves()
         {
-            try { return PoseStore.ListFiles(DirectoryPath, Prefix); }
+            try { return MoveStore.List(); }
             catch (Exception error) when (IsFileError(error))
             {
                 Status = error.Message;
@@ -69,12 +70,7 @@ namespace BeatTheBoss.Poses
         {
             try
             {
-                MoveDefinition definition = JsonUtility.FromJson<MoveDefinition>(File.ReadAllText(PathFor(name)));
-                if (definition == null || definition.version is not (1 or 2) || definition.steps == null ||
-                    definition.steps.Exists(step => step == null || step.actions == null))
-                    throw new InvalidDataException("The move file is empty or unsupported.");
-                bool legacy = definition.version == 1;
-                definition.UpdateLegacyBoneIds();
+                MoveDefinition definition = MoveStore.Load(name, out bool legacy);
                 StopTest();
                 Draft = definition;
                 loadedName = name;
@@ -95,7 +91,7 @@ namespace BeatTheBoss.Poses
                 foreach (MoveStep step in Draft.steps)
                     if (step.kind == MoveStepKind.Pose)
                         poses.Load(step.poseName);
-                string path = PathFor(Draft.name);
+                string path = MoveStore.PathFor(Draft.name);
                 // Only overwrite the file associated with this draft. A different name goes through the new-file path.
                 bool replace = string.Equals(loadedName, Draft.name, StringComparison.OrdinalIgnoreCase) &&
                     File.Exists(path);
@@ -131,8 +127,6 @@ namespace BeatTheBoss.Poses
             LastOutcome = MoveOutcome.None;
             Status = "Detection stopped.";
         }
-
-        private string PathFor(string name) => PoseStore.NamedPath(DirectoryPath, Prefix, name, "move");
 
         private static bool IsFileError(Exception error) =>
             error is IOException or UnauthorizedAccessException or ArgumentException or InvalidDataException;

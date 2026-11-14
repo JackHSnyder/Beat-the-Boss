@@ -1,5 +1,9 @@
+// Builds the in-game controls for category rules, per-bone tolerances, and matching feedback.
+// PoseGamePanel hosts it, and PoseWorkbench provides the current profile and match results.
+
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -13,12 +17,12 @@ namespace BeatTheBoss.Poses
 
         private readonly PoseWorkbench workbench;
         private readonly List<(PoseCategory category, int bone, string label)> entries = new();
-        private readonly Text[] rows = new Text[RowsPerPage];
-        private readonly Text heading;
-        private readonly Text include;
-        private readonly Text session;
-        private readonly Text live;
-        private readonly Text pageCount;
+        private readonly TMP_Text[] rows = new TMP_Text[RowsPerPage];
+        private readonly TMP_Text heading;
+        private readonly TMP_Text include;
+        private readonly TMP_Text session;
+        private readonly TMP_Text live;
+        private readonly TMP_Text pageCount;
         private readonly Button back;
         private readonly Button previous;
         private readonly Button next;
@@ -47,12 +51,12 @@ namespace BeatTheBoss.Poses
             {
                 int row = i;
                 rows[i] = layout.Button(root, "", 0, ListY + i * 42, 632, 39, () => OpenRow(row));
-                rows[i].alignment = TextAnchor.MiddleLeft;
+                rows[i].alignment = TextAlignmentOptions.MidlineLeft;
             }
 
             previous = ButtonFor(layout.Button(root, "‹", 0, 351, 66, 36, () => ChangePage(-1)));
             pageCount = layout.Label(root, "", 81, 351, 470, 36, 17);
-            pageCount.alignment = TextAnchor.MiddleCenter;
+            pageCount.alignment = TextAlignmentOptions.Midline;
             next = ButtonFor(layout.Button(root, "›", 566, 351, 66, 36, () => ChangePage(1)));
             revert = ButtonFor(layout.Button(root, "Revert changes", 0, 396, 303, 40, workbench.RevertMatchSettings));
             save = ButtonFor(layout.Button(root, "Save matching settings", 315, 396, 317, 40, workbench.SaveMatchSettings, true));
@@ -275,14 +279,14 @@ namespace BeatTheBoss.Poses
         }
 
         private static string BoneLabel(string id) => BoneWords.Replace(id.Substring(id.IndexOf('/') + 1), " ");
-        private static Button ButtonFor(Text label) => label.GetComponentInParent<Button>(true);
-        private static void SetVisible(Text buttonLabel, bool visible) => buttonLabel.transform.parent.gameObject.SetActive(visible);
+        private static Button ButtonFor(TMP_Text label) => label.GetComponentInParent<Button>(true);
+        private static void SetVisible(TMP_Text buttonLabel, bool visible) => buttonLabel.GetComponentInParent<Button>(true).gameObject.SetActive(visible);
 
         private sealed class NumberRow
         {
             private readonly RectTransform root;
-            private readonly Text value;
-            private readonly Text resetLabel;
+            private readonly TMP_Text value;
+            private readonly TMP_Text resetLabel;
             private readonly Button reset;
 
             public NumberRow(PosePanelLayout layout, Transform parent, string label, float y,
@@ -293,7 +297,7 @@ namespace BeatTheBoss.Poses
                 layout.Button(root, "−10", 134, 0, 60, 42, () => change(-10));
                 layout.Button(root, "−1", 200, 0, 49, 42, () => change(-1));
                 value = layout.Label(root, "", 254, 0, 130, 42, 17);
-                value.alignment = TextAnchor.MiddleCenter;
+                value.alignment = TextAlignmentOptions.Midline;
                 layout.Button(root, "+1", 391, 0, 49, 42, () => change(1));
                 layout.Button(root, "+10", 446, 0, 60, 42, () => change(10));
                 resetLabel = layout.Button(root, "Reset", 516, 0, 116, 42, clear);

@@ -1,7 +1,11 @@
+// Builds the recording scene's desktop and headset controls on a Meta UI Set backplate.
+// It routes recording and preview actions through PoseWorkbench and connects the Moves page to MoveWorkbench.
+
 using System;
 using System.IO;
 using Oculus.Interaction;
 using Oculus.Interaction.Surfaces;
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
@@ -14,6 +18,7 @@ namespace BeatTheBoss.Poses
     public sealed class PoseGamePanel : MonoBehaviour
     {
         private static readonly Vector2 PanelSize = new(680, 646);
+        private const float SystemKeyboardOpenTimeout = 2f;
         private static readonly PlayerPoseTracker.InputMode[] InputModes =
         {
             PlayerPoseTracker.InputMode.Automatic,
@@ -25,10 +30,19 @@ namespace BeatTheBoss.Poses
         [SerializeField] private PoseWorkbench workbench;
         [SerializeField] private Camera headsetCamera;
 
+        [Header("Meta UI Set prefabs")]
+        [SerializeField] private GameObject backplatePrefab;
+        [SerializeField] private Button primaryButtonPrefab;
+        [SerializeField] private Button secondaryButtonPrefab;
+        [SerializeField] private GameObject nameFieldPrefab;
+        [SerializeField] private Slider sliderPrefab;
+
         private PosePanelLayout layout;
+        private GameObject panelRoot;
         private Canvas canvas;
-        private CanvasScaler scaler;
-        private GameObject xrTarget;
+        private RayInteractable rayTarget;
+        private PokeInteractable pokeTarget;
+        private GazeInteractable gazeTarget;
         private InputSystemUIInputModule mouseModule;
         private PointableCanvasModule xrModule;
         private RectTransform panel;
@@ -39,41 +53,44 @@ namespace BeatTheBoss.Poses
         private RectTransform keyboardPage;
         private RectTransform movePage;
         private RectTransform trackingPage;
-        private Text poseTab;
-        private Text settingsTab;
-        private Text matchTab;
-        private Text constraintTab;
-        private Text moveTab;
-        private Text trackingTab;
+        private TMP_Text poseTab;
+        private TMP_Text settingsTab;
+        private TMP_Text matchTab;
+        private TMP_Text constraintTab;
+        private TMP_Text moveTab;
+        private TMP_Text trackingTab;
         private PoseMatchPanel matchPanel;
         private PoseConstraintPanel constraintPanel;
         private MovePanel movePanel;
         private TrackingMapPanel trackingMap;
-        private Text tracking;
-        private Text footer;
-        private Text recenter;
-        private Text poseName;
-        private Text keyboardName;
-        private Text keyboardTitle;
-        private InputField keyboardInput;
+        private TMP_Text tracking;
+        private TMP_Text footer;
+        private TMP_Text recenter;
+        private TMP_Text poseName;
+        private TMP_Text keyboardName;
+        private TMP_Text keyboardTitle;
+        private TMP_InputField keyboardInput;
         private string nameBuffer;
         private Action<string> acceptName;
         private RectTransform nameReturnPage;
-        private Text delay;
-        private Text selectedPose;
-        private Text preview;
-        private Text match;
-        private Text matchDetails;
-        private Text input;
-        private Text tolerance;
-        private Text leftHand;
-        private Text rightHand;
-        private Text modelTest;
-        private Text elbow;
-        private Text[] previewOffsets;
+        private TouchScreenKeyboard systemKeyboard;
+        private float systemKeyboardDeadline;
+        private bool systemKeyboardOpened;
+        private TMP_Text delay;
+        private TMP_Text selectedPose;
+        private TMP_Text preview;
+        private TMP_Text match;
+        private TMP_Text matchDetails;
+        private TMP_Text input;
+        private TMP_Text tolerance;
+        private TMP_Text leftHand;
+        private TMP_Text rightHand;
+        private TMP_Text modelTest;
+        private TMP_Text elbow;
+        private TMP_Text[] previewOffsets;
         private Slider toleranceSlider;
         private Slider elbowSlider;
-        private InputField desktopName;
+        private TMP_InputField desktopName;
         private Button captureButton;
         private Button previousPose;
         private Button nextPose;
@@ -88,7 +105,7 @@ namespace BeatTheBoss.Poses
         private bool inHeadset;
         private bool needsInitialPlacement;
         private bool capitalLetters = true;
-        private Text[] letterKeys;
+        private TMP_Text[] letterKeys;
         private float nextRefresh;
 
         private void Start()
@@ -99,10 +116,19 @@ namespace BeatTheBoss.Poses
                 return;
             }
 
-            if (headsetCamera == null && TryGetComponent<OVRCameraRig>(out var rig) && rig.centerEyeAnchor != null)
+            if (headsetCamera == null && workbench.Tracker.TryGetComponent<OVRCameraRig>(out var rig) &&
+                rig.centerEyeAnchor != null)
                 headsetCamera = rig.centerEyeAnchor.GetComponent<Camera>();
 
-            layout = new PosePanelLayout();
+            if (backplatePrefab == null || primaryButtonPrefab == null || secondaryButtonPrefab == null ||
+                nameFieldPrefab == null || sliderPrefab == null)
+            {
+                Debug.LogError("Assign the Meta UI Set prefabs to the recording panel.", this);
+                enabled = false;
+                return;
+            }
+
+            layout = new PosePanelLayout(primaryButtonPrefab, secondaryButtonPrefab, nameFieldPrefab, sliderPrefab);
             BuildPanel();
             ConfigureInput();
             SetPresentation(HeadsetActive());
@@ -116,6 +142,7 @@ namespace BeatTheBoss.Poses
             bool headset = HeadsetActive();
             if (headset != inHeadset)
                 SetPresentation(headset);
+            UpdateSystemKeyboard();
             if (inHeadset && ((needsInitialPlacement && OVRPlugin.GetNodePositionTracked(OVRPlugin.Node.EyeCenter)) ||
                 OVRInput.GetDown(OVRInput.Button.Two, OVRInput.Controller.RTouch)))
             {
@@ -134,33 +161,36 @@ namespace BeatTheBoss.Poses
 
         private void OnEnable()
         {
-            if (canvas != null)
-                canvas.gameObject.SetActive(true);
+            if (panelRoot != null)
+                panelRoot.SetActive(true);
         }
 
         private void OnDisable()
         {
-            if (canvas != null)
-                canvas.gameObject.SetActive(false);
+            CloseSystemKeyboard();
+            if (panelRoot != null)
+                panelRoot.SetActive(false);
         }
 
         private bool HeadsetActive() => headsetCamera != null && XRSettings.isDeviceActive;
 
         private void BuildPanel()
         {
-            var root = new GameObject("Pose controls canvas", typeof(RectTransform), typeof(Canvas),
-                typeof(CanvasScaler), typeof(GraphicRaycaster));
-            root.transform.SetParent(transform, false);
-            canvas = root.GetComponent<Canvas>();
+            panelRoot = Instantiate(backplatePrefab, transform, false);
+            panelRoot.name = "Recording menu";
+            canvas = panelRoot.GetComponentInChildren<Canvas>(true);
             canvas.sortingOrder = 10;
-            scaler = root.GetComponent<CanvasScaler>();
+            var scaler = canvas.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1150, 720);
             scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
 
-            panel = layout.Rect(root.transform, "Pose controls", 0, 0, PanelSize.x, PanelSize.y);
-            layout.Fill(panel, PosePanelLayout.Background).raycastTarget = true;
-            layout.Label(panel, "Pose controls", 24, 14, 400, 44, 32, true);
+            // Use the backplate's fixed-size region for the existing page layouts.
+            canvas.GetComponent<HorizontalLayoutGroup>().enabled = false;
+            panel = (RectTransform)canvas.transform.Find("UIBackplate");
+            panel.GetComponent<VerticalLayoutGroup>().enabled = false;
+            panel.sizeDelta = PanelSize;
+            layout.Label(panel, "Recording tools", 24, 14, 400, 44, 32, true);
             recenter = layout.Button(panel, "Recenter (B)", 505, 22, 151, 38, PlacePanel);
             tracking = layout.Label(panel, "", 24, 58, 632, 28);
             tracking.color = PosePanelLayout.Muted;
@@ -204,7 +234,7 @@ namespace BeatTheBoss.Poses
             layout.Label(posePage, "Capture delay", 0, 54, 144, 44);
             layout.Button(posePage, "−", 150, 54, 48, 44, () => AdjustDelay(-1));
             delay = layout.Label(posePage, "", 204, 54, 86, 44);
-            delay.alignment = TextAnchor.MiddleCenter;
+            delay.alignment = TextAlignmentOptions.Midline;
             layout.Button(posePage, "+", 296, 54, 48, 44, () => AdjustDelay(1));
             captureButton = layout.Button(posePage, "Capture and save", 356, 54, 276, 44, workbench.QueueCapture, true)
                 .GetComponentInParent<Button>();
@@ -214,7 +244,6 @@ namespace BeatTheBoss.Poses
             previousPose = layout.Button(posePage, "‹", 0, 161, 46, 48, () => MoveSelection(-1))
                 .GetComponentInParent<Button>();
             selectedPose = layout.Label(posePage, "", 58, 161, 350, 48);
-            selectedPose.horizontalOverflow = HorizontalWrapMode.Wrap;
             nextPose = layout.Button(posePage, "›", 420, 161, 46, 48, () => MoveSelection(1))
                 .GetComponentInParent<Button>();
             loadPose = layout.Button(posePage, "Load selected", 480, 161, 152, 48, LoadSelected)
@@ -229,7 +258,7 @@ namespace BeatTheBoss.Poses
             layout.Fill(layout.Rect(posePage, "Match background", 0, 286, 632, 134), PosePanelLayout.Surface);
             match = layout.Label(posePage, "", 14, 294, 604, 38, 23, true);
             matchDetails = layout.Label(posePage, "", 14, 333, 604, 77, 17);
-            matchDetails.alignment = TextAnchor.UpperLeft;
+            matchDetails.alignment = TextAlignmentOptions.TopLeft;
         }
 
         private void BuildSettingsPage()
@@ -255,14 +284,14 @@ namespace BeatTheBoss.Poses
             elbow = layout.Label(settingsPage, "", 558, 224, 74, 46);
 
             layout.Label(settingsPage, "Preview offset (m)", 0, 280, 212, 46);
-            previewOffsets = new Text[3];
+            previewOffsets = new TMP_Text[3];
             for (int axis = 0; axis < previewOffsets.Length; axis++)
             {
                 int index = axis;
                 float x = 218 + axis * 140;
                 layout.Button(settingsPage, "−", x, 280, 32, 46, () => AdjustOffset(index, -0.1f));
-                Text value = layout.Label(settingsPage, "", x + 34, 280, 60, 46, 16);
-                value.alignment = TextAnchor.MiddleCenter;
+                TMP_Text value = layout.Label(settingsPage, "", x + 34, 280, 60, 46, 16);
+                value.alignment = TextAlignmentOptions.Midline;
                 previewOffsets[axis] = value;
                 layout.Button(settingsPage, "+", x + 94, 280, 32, 46, () => AdjustOffset(index, 0.1f));
             }
@@ -270,7 +299,7 @@ namespace BeatTheBoss.Poses
             layout.Label(settingsPage, "Pose files", 0, 345, 148, 34, 21, true);
             openFolder = layout.Button(settingsPage, "Open pose folder", 438, 341, 194, 40, OpenPoseFolder)
                 .GetComponentInParent<Button>();
-            Text path = layout.Label(settingsPage, workbench.PoseDirectory, 0, 385, 632, 46, 16);
+            TMP_Text path = layout.Label(settingsPage, workbench.PoseDirectory, 0, 385, 632, 46, 16);
             path.color = PosePanelLayout.Muted;
         }
 
@@ -282,7 +311,7 @@ namespace BeatTheBoss.Poses
             keyboardInput = layout.NameField(keyboardPage, 0, 42, 632, 52);
             keyboardInput.onValueChanged.AddListener(value => nameBuffer = value);
             const string keys = "1234567890QWERTYUIOPASDFGHJKL-ZXCVBNM_";
-            letterKeys = new Text[keys.Length];
+            letterKeys = new TMP_Text[keys.Length];
             for (int i = 0; i < keys.Length; i++)
             {
                 char key = keys[i];
@@ -297,21 +326,87 @@ namespace BeatTheBoss.Poses
                 nameBuffer = "";
                 UpdateLabels();
             });
-            layout.Button(keyboardPage, "Done", 502, 338, 130, 48, () =>
-            {
-                acceptName?.Invoke(nameBuffer);
-                SelectPage(nameReturnPage);
-            }, true);
+            layout.Button(keyboardPage, "Done", 502, 338, 130, 48, () => CommitName(nameBuffer), true);
         }
 
-        // Both name editors use the same keyboard. Commit the buffer only when Done is pressed.
+        // Both name editors share the same commit callback regardless of the keyboard used.
         private void EditName(RectTransform returnPage, string title, string value, Action<string> accept)
         {
+            CloseSystemKeyboard();
             nameReturnPage = returnPage;
             nameBuffer = value ?? "";
             acceptName = accept;
             keyboardTitle.text = title;
-            SelectPage(keyboardPage);
+            if (!TryOpenSystemKeyboard(title))
+                SelectPage(keyboardPage);
+        }
+
+        private bool TryOpenSystemKeyboard(string title)
+        {
+            if (!inHeadset || Application.platform != RuntimePlatform.Android)
+                return false;
+
+            try
+            {
+                // Android also runs on other headsets. Check that the Meta runtime recognizes this device.
+                if (!TouchScreenKeyboard.isSupported ||
+                    OVRPlugin.GetSystemHeadsetType() is not (OVRPlugin.SystemHeadset.Oculus_Quest or
+                    OVRPlugin.SystemHeadset.Oculus_Quest_2 or OVRPlugin.SystemHeadset.Meta_Quest_Pro or
+                    OVRPlugin.SystemHeadset.Meta_Quest_3 or OVRPlugin.SystemHeadset.Meta_Quest_3S or
+                    OVRPlugin.SystemHeadset.Meta_VR_Glasses))
+                    return false;
+
+                systemKeyboard = TouchScreenKeyboard.Open(nameBuffer, TouchScreenKeyboardType.Default,
+                    false, false, false, false, title, 64);
+                systemKeyboardDeadline = Time.unscaledTime + SystemKeyboardOpenTimeout;
+                return systemKeyboard != null;
+            }
+            catch (Exception error)
+            {
+                Debug.LogWarning("Could not open the Horizon OS keyboard. " + error.Message, this);
+                return false;
+            }
+        }
+
+        private void UpdateSystemKeyboard()
+        {
+            if (systemKeyboard == null)
+                return;
+
+            switch (systemKeyboard.status)
+            {
+                case TouchScreenKeyboard.Status.Done:
+                    CommitName(systemKeyboard.text);
+                    return;
+                case TouchScreenKeyboard.Status.Canceled:
+                    CloseSystemKeyboard();
+                    return;
+                case TouchScreenKeyboard.Status.LostFocus:
+                    if (systemKeyboardOpened)
+                        nameBuffer = systemKeyboard.text ?? nameBuffer;
+                    SelectPage(keyboardPage);
+                    return;
+            }
+
+            // Horizon OS takes input focus while the overlay is open. Allow time for it to appear.
+            systemKeyboardOpened |= TouchScreenKeyboard.visible || !OVRManager.hasInputFocus;
+            if (!inHeadset || (!systemKeyboardOpened && Time.unscaledTime >= systemKeyboardDeadline))
+                SelectPage(keyboardPage);
+        }
+
+        private void CloseSystemKeyboard()
+        {
+            if (systemKeyboard != null)
+                systemKeyboard.active = false;
+            systemKeyboard = null;
+            systemKeyboardOpened = false;
+        }
+
+        private void CommitName(string value)
+        {
+            CloseSystemKeyboard();
+            acceptName?.Invoke(value ?? "");
+            SelectPage(nameReturnPage);
         }
 
         // Route desktop pointer events through Unity Input System and headset events through Meta's canvas module.
@@ -332,32 +427,24 @@ namespace BeatTheBoss.Poses
                 xrModule = events.gameObject.AddComponent<PointableCanvasModule>();
             xrModule.ExclusiveMode = false;
 
-            xrTarget = new GameObject("Pose panel XR interaction");
-            xrTarget.SetActive(false);
-            xrTarget.transform.SetParent(canvas.transform, false);
-            var pointable = xrTarget.AddComponent<PointableCanvas>();
-            pointable.InjectAllPointableCanvas(canvas);
-            var plane = xrTarget.AddComponent<PlaneSurface>();
-            var clipper = xrTarget.AddComponent<BoundsClipper>();
-            clipper.Size = new Vector3(PanelSize.x, PanelSize.y, 1);
-            var surface = xrTarget.AddComponent<ClippedPlaneSurface>();
-            surface.InjectAllClippedPlaneSurface(plane, new[] { clipper });
-            var gaze = xrTarget.AddComponent<GazeInteractable>();
-            gaze.InjectAllGazeInteractable(surface);
-            gaze.InjectOptionalPointableElement(pointable);
-            gaze.InjectOptionalMultiGrabScalingSupport(false);
-            var ray = xrTarget.AddComponent<RayInteractable>();
-            ray.InjectAllRayInteractable(surface);
-            ray.InjectOptionalPointableElement(pointable);
-            ray.InjectOptionalSelectSurface(plane);
+            // Ray and poke are wired on the prefab. Keep the recording rig's existing gaze input on the same surface.
+            rayTarget = panelRoot.GetComponent<RayInteractable>();
+            pokeTarget = panelRoot.GetComponent<PokeInteractable>();
+            var gazeRoot = new GameObject("Recording gaze interaction");
+            gazeRoot.SetActive(false);
+            gazeRoot.transform.SetParent(panelRoot.transform, false);
+            gazeTarget = gazeRoot.AddComponent<GazeInteractable>();
+            gazeTarget.InjectAllGazeInteractable(panelRoot.GetComponentInChildren<ClippedPlaneSurface>(true));
+            gazeTarget.InjectOptionalPointableElement(panelRoot.GetComponent<PointableCanvas>());
+            gazeTarget.InjectOptionalMultiGrabScalingSupport(false);
+            gazeRoot.SetActive(true);
         }
 
         private void SetPresentation(bool headset)
         {
             inHeadset = headset;
             needsInitialPlacement = headset;
-            if (!headset)
-                xrTarget.SetActive(false);
+            rayTarget.enabled = pokeTarget.enabled = gazeTarget.enabled = headset;
             mouseModule.enabled = !headset;
             xrModule.enabled = headset;
             canvas.renderMode = headset ? RenderMode.WorldSpace : RenderMode.ScreenSpaceOverlay;
@@ -370,7 +457,6 @@ namespace BeatTheBoss.Poses
                 panel.anchorMin = panel.anchorMax = panel.pivot = new Vector2(0.5f, 0.5f);
                 panel.anchoredPosition = Vector2.zero;
                 PlacePanel();
-                xrTarget.SetActive(true);
             }
             else
             {
@@ -381,8 +467,8 @@ namespace BeatTheBoss.Poses
             desktopName.gameObject.SetActive(!headset);
             keyboardInput.gameObject.SetActive(!headset);
             keyboardName.gameObject.SetActive(headset);
-            poseName.transform.parent.gameObject.SetActive(headset);
-            recenter.transform.parent.gameObject.SetActive(headset);
+            poseName.GetComponentInParent<Button>(true).gameObject.SetActive(headset);
+            recenter.GetComponentInParent<Button>(true).gameObject.SetActive(headset);
             openFolder.gameObject.SetActive(!headset);
         }
 
@@ -398,6 +484,7 @@ namespace BeatTheBoss.Poses
 
         private void SelectPage(RectTransform page)
         {
+            CloseSystemKeyboard();
             posePage.gameObject.SetActive(page == posePage);
             matchPage.gameObject.SetActive(page == matchPage);
             constraintPage.gameObject.SetActive(page == constraintPage);
@@ -494,7 +581,7 @@ namespace BeatTheBoss.Poses
         private void ToggleCapitalLetters()
         {
             capitalLetters = !capitalLetters;
-            foreach (Text key in letterKeys)
+            foreach (TMP_Text key in letterKeys)
                 key.text = capitalLetters ? key.text.ToUpperInvariant() : key.text.ToLowerInvariant();
         }
 

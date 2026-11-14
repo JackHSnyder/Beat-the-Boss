@@ -1,3 +1,6 @@
+// Reads, validates, and writes saved pose JSON, including matching settings and legacy pose replacements.
+// PoseWorkbench uses it for recording and editing. MoveWorkbench and MoveDetection use it to load pose steps.
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -105,9 +108,11 @@ namespace BeatTheBoss.Poses
             }
         }
 
-        public SavedPose Load(string name)
+        public SavedPose Load(string name) => ReadJson(File.ReadAllText(PathFor(name)));
+
+        internal static SavedPose ReadJson(string json)
         {
-            SavedPose pose = JsonUtility.FromJson<SavedPose>(File.ReadAllText(PathFor(name)));
+            SavedPose pose = JsonUtility.FromJson<SavedPose>(json);
             Validate(pose);
             return pose;
         }

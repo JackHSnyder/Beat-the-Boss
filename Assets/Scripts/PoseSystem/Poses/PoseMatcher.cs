@@ -1,3 +1,6 @@
+// Compares a tracked frame with a saved pose using joint rotations, category tolerances, and constraints.
+// PoseWorkbench uses it for standalone pose tests. MoveDetector uses it for pose steps.
+
 using System;
 using System.Collections.Generic;
 using UnityEngine;

@@ -1,3 +1,6 @@
+// Defines the saved move format, including pose steps, action sets, velocity thresholds, and timers.
+// MovePanel and MoveWorkbench edit it. MoveStore loads it, and MoveDetector runs it.
+
 using System;
 using System.Collections.Generic;
 using System.IO;

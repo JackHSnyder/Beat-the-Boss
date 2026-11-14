@@ -1,3 +1,6 @@
+// Defines position and direction rules and evaluates them against a tracked frame.
+// PoseConstraintPanel edits the rules. PoseMatcher uses their results when checking a pose.
+
 using System;
 using UnityEngine;
 

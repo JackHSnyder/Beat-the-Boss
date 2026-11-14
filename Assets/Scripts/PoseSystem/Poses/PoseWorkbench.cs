@@ -1,8 +1,10 @@
+// Manages pose capture, preview, matching settings, and model tests in the recording scene.
+// PoseGamePanel and PoseWorkbenchEditor provide controls. MoveWorkbench reads its current frame for testing.
+
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using Meta.XR.Movement.Retargeting;
 using UnityEngine;
 
 namespace BeatTheBoss.Poses
@@ -11,7 +13,7 @@ namespace BeatTheBoss.Poses
     public sealed class PoseWorkbench : MonoBehaviour
     {
         [SerializeField] private PlayerPoseTracker tracker;
-        [SerializeField] private CharacterRetargeter avatar;
+        [SerializeField] private PlayerAvatarDriver avatarDriver;
         [SerializeField, Range(0, 180)] private float toleranceDegrees = 15;
         [SerializeField] private Vector3 previewOffset = new(1.6f, 0, 1.5f);
 
@@ -26,7 +28,6 @@ namespace BeatTheBoss.Poses
         private bool replaceLegacyCapture;
         private float captureTime;
         private bool modelTest;
-        private bool retargeterWasEnabled;
         private float testBend;
         private string loadedFileName;
 
@@ -68,42 +69,19 @@ namespace BeatTheBoss.Poses
         private void Awake()
         {
             store = new PoseStore(PoseDirectory);
-            if (tracker != null && avatar != null)
-            {
-                rig = new AvatarPoseRig(avatar);
-                retargeterWasEnabled = avatar.enabled;
-                UpdateAvatarDriver();
+            rig = avatarDriver != null ? avatarDriver.Rig : null;
+            if (tracker != null && rig != null)
                 return;
-            }
 
-            Status = "Assign the player tracker and character retargeter.";
+            Status = "Assign the player tracker and avatar driver.";
             enabled = false;
         }
 
-        private void Update() => UpdateAvatarDriver();
-
-        private void UpdateAvatarDriver()
-        {
-            // The SDK drives the full character rig in automatic mode. Explicit input
-            // modes and model tests use the universal rig driver instead.
-            avatar.enabled = retargeterWasEnabled && !modelTest &&
-                tracker.Input == PlayerPoseTracker.InputMode.Automatic;
-        }
-
-        // Prepare the current frame and avatar before taking a capture or comparing the loaded pose.
+        // Model test input substitutes for live tracking only in the recording tools.
         private void LateUpdate()
         {
             if (modelTest)
-            {
                 rig.ReadModelTest(testFrame, tracker.PlayerSpace);
-            }
-            else if (UsesMetaRetargeting())
-            {
-                rig.RememberRetargetedScale();
-                rig.ApplyCustomMappings(tracker.Frame, tracker.PlayerSpace, tracker.Mappings);
-            }
-            else
-                rig.ApplyLive(tracker.Frame, tracker.PlayerSpace);
 
             if (pendingName != null && Time.unscaledTime >= captureTime)
             {
@@ -115,9 +93,6 @@ namespace BeatTheBoss.Poses
             if (MatchProfile != null)
                 Match = PoseMatcher.Compare(CurrentFrame, MatchProfile, toleranceDegrees, sessionIgnoredCategories);
         }
-
-        private bool UsesMetaRetargeting() => avatar.isActiveAndEnabled && avatar.RetargeterValid &&
-            tracker.Frame.Mode is TrackingMode.FullBody or TrackingMode.UpperBody;
 
         public void QueueCapture(string poseName, float delaySeconds) => QueueCapture(poseName, delaySeconds, false);
 
@@ -225,7 +200,7 @@ namespace BeatTheBoss.Poses
                 return;
 
             modelTest = enabled;
-            UpdateAvatarDriver();
+            avatarDriver.SetManualControl(modelTest);
             if (modelTest)
             {
                 rig.SetTestBend(testBend);
@@ -317,10 +292,8 @@ namespace BeatTheBoss.Poses
         {
             pendingName = null;
             HidePreview();
-            if (modelTest && avatar != null)
+            if (modelTest && avatarDriver != null)
                 SetModelTest(false);
-            if (rig != null && avatar != null)
-                avatar.enabled = retargeterWasEnabled;
         }
 
         private void SaveCurrent(string name, bool replaceLegacy)

@@ -1,3 +1,6 @@
+// Evaluates one move in sequence, tracking action timing, deadlines, and cooldown.
+// MoveDetection uses it in gameplay scenes. MoveWorkbench uses it to test drafts.
+
 using System;
 using System.Collections.Generic;
 using System.IO;
