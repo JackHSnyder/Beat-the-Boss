@@ -191,6 +191,8 @@ namespace BeatTheBoss.Poses
             panel.GetComponent<VerticalLayoutGroup>().enabled = false;
             panel.sizeDelta = PanelSize;
             layout.Label(panel, "Recording tools", 24, 14, 400, 44, 32, true);
+            layout.Button(panel, "Main Menu", 365, 22, 130, 38,
+                () => SceneHandler.TransitionTo(SceneDestination.MainMenu));
             recenter = layout.Button(panel, "Recenter (B)", 505, 22, 151, 38, PlacePanel);
             tracking = layout.Label(panel, "", 24, 58, 632, 28);
             tracking.color = PosePanelLayout.Muted;

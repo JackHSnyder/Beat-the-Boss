@@ -2,6 +2,7 @@
 // The Player prefab runs it alongside PlayerPoseTracker. PoseWorkbench pauses it during model tests.
 
 using Meta.XR.Movement.Retargeting;
+using Oculus.Interaction;
 using UnityEngine;
 
 namespace BeatTheBoss.Poses
@@ -11,6 +12,7 @@ namespace BeatTheBoss.Poses
     {
         [SerializeField] private PlayerPoseTracker tracker;
         [SerializeField] private CharacterRetargeter avatar;
+        [SerializeField] private bool hideDefaultHandVisuals;
 
         private bool retargeterWasEnabled;
         private bool manualControl;
@@ -19,6 +21,13 @@ namespace BeatTheBoss.Poses
 
         private void Awake()
         {
+            // HandVisual manages its renderer as tracking changes. Use its visibility override so the rig stays active.
+            if (hideDefaultHandVisuals)
+            {
+                foreach (HandVisual visual in GetComponentsInChildren<HandVisual>(true))
+                    visual.ForceOffVisibility = true;
+            }
+
             if (tracker == null || avatar == null)
             {
                 Debug.LogError("Assign the player tracker and character retargeter.", this);

@@ -1613,3 +1613,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::BeatTheBoss.Poses.PlayerAvatarDriver
   tracker: {fileID: 917472192}
   avatar: {fileID: 77630972}
+  hideDefaultHandVisuals: 1
