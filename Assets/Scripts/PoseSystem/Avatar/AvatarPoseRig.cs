@@ -11,6 +11,8 @@ namespace BeatTheBoss.Poses
     // Maps the universal skeleton onto a rig's own bind transforms.
     internal sealed class AvatarPoseRig
     {
+        internal const string RightIndexProximalJoint = "Right_IndexProximal";
+
         private readonly Dictionary<string, Transform> joints = new(StringComparer.Ordinal);
         private readonly Dictionary<string, RestJoint> rest = new(StringComparer.Ordinal);
         private readonly List<RigBinding> bindings = new();
@@ -85,6 +87,29 @@ namespace BeatTheBoss.Poses
                 previewHeadScale = head.localScale;
                 hasRetargetedHeadScale = true;
             }
+        }
+
+        internal bool TryGetJoint(string name, out Transform joint) => joints.TryGetValue(name, out joint);
+
+        internal bool TryGetRightIndexRay(out Ray ray)
+        {
+            ray = default;
+            if (!joints.TryGetValue(RightIndexProximalJoint, out Transform proximal) ||
+                !rest.TryGetValue("Right_IndexIntermediate", out RestJoint intermediateRest) ||
+                !joints.TryGetValue("Right_IndexDistal", out Transform distal))
+                return false;
+
+            Transform fingertip = distal.Find("Right_IndexDistalEnd");
+            if (fingertip == null)
+                return false;
+
+            // The bind offset points from the main knuckle along the first finger segment.
+            Vector3 direction = proximal.rotation * intermediateRest.localPose.position;
+            if (direction.sqrMagnitude < 0.00000001f)
+                return false;
+
+            ray = new Ray(fingertip.position, direction.normalized);
+            return true;
         }
 
         private static bool IsUsableScale(Vector3 scale) => scale.x > 0 && scale.y > 0 && scale.z > 0 &&

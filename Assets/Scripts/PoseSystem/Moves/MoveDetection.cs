@@ -31,8 +31,8 @@ namespace BeatTheBoss.Poses
         /// <summary>Raised with the saved move name each time its full sequence passes.</summary>
         public event Action<string> MovePerformed;
 
-        /// <summary>Raised with the loadout slot and move name when its sequence passes.</summary>
-        public event Action<MoveSlot, string> LoadoutMovePerformed;
+        /// <summary>Raised with the loadout slot when its assigned move passes.</summary>
+        public event Action<MoveSlot> LoadoutMovePerformed;
 
         private void Start() => BeginDetection();
 
@@ -132,7 +132,7 @@ namespace BeatTheBoss.Poses
                 MovePerformed?.Invoke(entry.Name);
                 onMovePerformed.Invoke(entry.Name);
                 if (entry.Slot is MoveSlot slot)
-                    LoadoutMovePerformed?.Invoke(slot, entry.Name);
+                    LoadoutMovePerformed?.Invoke(slot);
                 // A listener may disable or restart this component while handling the move.
                 if (!isActiveAndEnabled || detectors != activeDetectors)
                     return;
