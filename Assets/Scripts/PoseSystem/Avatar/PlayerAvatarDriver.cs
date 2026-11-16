@@ -71,6 +71,7 @@ namespace BeatTheBoss.Poses
                 tracker.Frame.Mode is TrackingMode.FullBody or TrackingMode.UpperBody)
             {
                 Rig.RememberRetargetedScale();
+                Rig.PlaceRetargetedBody(tracker.Frame, tracker.PlayerSpace);
                 Rig.ApplyCustomMappings(tracker.Frame, tracker.PlayerSpace, tracker.Mappings);
             }
             else

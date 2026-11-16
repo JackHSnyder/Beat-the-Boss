@@ -14,6 +14,8 @@ namespace BeatTheBoss.Poses
     {
         [Tooltip("Optional when the scene contains exactly one active player tracker.")]
         [SerializeField] private PlayerPoseTracker tracker;
+        [Tooltip("Watch only the assignments made in the main menu Loadout.")]
+        [SerializeField] private bool useLoadout;
         [Tooltip("Names of moves saved on this device through the recording tools.")]
         [SerializeField] private string[] savedMoveNames = Array.Empty<string>();
         [Tooltip("Move JSON files included in the project for use in a build.")]
@@ -24,10 +26,13 @@ namespace BeatTheBoss.Poses
         [SerializeField] private UnityEvent<string> onMovePerformed = new();
 
         private PlayerPoseTracker activeTracker;
-        private Dictionary<string, MoveDetector> detectors;
+        private List<(string Name, MoveDetector Detector, MoveSlot? Slot)> detectors;
 
         /// <summary>Raised with the saved move name each time its full sequence passes.</summary>
         public event Action<string> MovePerformed;
+
+        /// <summary>Raised with the loadout slot and move name when its sequence passes.</summary>
+        public event Action<MoveSlot, string> LoadoutMovePerformed;
 
         private void Start() => BeginDetection();
 
@@ -40,7 +45,7 @@ namespace BeatTheBoss.Poses
 
         private void BeginDetection()
         {
-            detectors = new Dictionary<string, MoveDetector>(StringComparer.OrdinalIgnoreCase);
+            detectors = new List<(string, MoveDetector, MoveSlot?)>();
             activeTracker = tracker;
             if (activeTracker == null)
             {
@@ -54,6 +59,17 @@ namespace BeatTheBoss.Poses
             }
 
             var devicePoses = new PoseStore(Path.Combine(Application.persistentDataPath, "Poses"));
+            if (useLoadout)
+            {
+                foreach (MoveSlot slot in MoveLoadout.Slots)
+                {
+                    string name = MoveLoadout.Get(slot);
+                    if (!string.IsNullOrEmpty(name))
+                        TryAddMove(name, () => MoveStore.Load(name, out _), devicePoses.Load, slot);
+                }
+                return;
+            }
+
             foreach (string name in savedMoveNames)
                 TryAddMove(name, () => MoveStore.Load(name, out _), devicePoses.Load);
 
@@ -82,14 +98,18 @@ namespace BeatTheBoss.Poses
             }
         }
 
-        private void TryAddMove(string label, Func<MoveDefinition> loadMove, Func<string, SavedPose> loadPose)
+        private void TryAddMove(string label, Func<MoveDefinition> loadMove, Func<string, SavedPose> loadPose,
+            MoveSlot? slot = null)
         {
             try
             {
                 MoveDefinition move = loadMove();
                 if (string.IsNullOrWhiteSpace(move.name))
                     throw new InvalidDataException("The move has no name.");
-                detectors.Add(move.name, new MoveDetector(move, loadPose));
+                if (slot == null && detectors.Exists(entry =>
+                    string.Equals(entry.Name, move.name, StringComparison.OrdinalIgnoreCase)))
+                    throw new InvalidDataException("A move with this name is already configured.");
+                detectors.Add((move.name, new MoveDetector(move, loadPose), slot));
             }
             catch (Exception error) when (IsDataError(error))
             {
@@ -106,11 +126,13 @@ namespace BeatTheBoss.Poses
             var activeDetectors = detectors;
             foreach (var entry in activeDetectors)
             {
-                if (entry.Value.Tick(activeTracker.Frame, now, fallbackToleranceDegrees) != MoveOutcome.Passed)
+                if (entry.Detector.Tick(activeTracker.Frame, now, fallbackToleranceDegrees) != MoveOutcome.Passed)
                     continue;
 
-                MovePerformed?.Invoke(entry.Key);
-                onMovePerformed.Invoke(entry.Key);
+                MovePerformed?.Invoke(entry.Name);
+                onMovePerformed.Invoke(entry.Name);
+                if (entry.Slot is MoveSlot slot)
+                    LoadoutMovePerformed?.Invoke(slot, entry.Name);
                 // A listener may disable or restart this component while handling the move.
                 if (!isActiveAndEnabled || detectors != activeDetectors)
                     return;

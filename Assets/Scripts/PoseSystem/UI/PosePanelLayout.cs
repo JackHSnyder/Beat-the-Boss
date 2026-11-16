@@ -29,7 +29,10 @@ namespace BeatTheBoss.Poses
             this.sliderPrefab = sliderPrefab;
         }
 
-        public RectTransform Rect(Transform parent, string name, float x, float y, float width, float height)
+        public RectTransform Rect(Transform parent, string name, float x, float y, float width, float height) =>
+            CreateRect(parent, name, x, y, width, height);
+
+        private static RectTransform CreateRect(Transform parent, string name, float x, float y, float width, float height)
         {
             var rect = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>();
             rect.SetParent(parent, false);
@@ -38,9 +41,13 @@ namespace BeatTheBoss.Poses
         }
 
         public TMP_Text Label(Transform parent, string value, float x, float y, float width, float height,
-            int size = 20, bool bold = false)
+            int size = 20, bool bold = false) =>
+            CreateLabel(parent, value, x, y, width, height, size, bold);
+
+        internal static TMP_Text CreateLabel(Transform parent, string value, float x, float y, float width, float height,
+            int size, bool bold = false)
         {
-            TMP_Text label = Rect(parent, value, x, y, width, height).gameObject.AddComponent<TextMeshProUGUI>();
+            TMP_Text label = CreateRect(parent, value, x, y, width, height).gameObject.AddComponent<TextMeshProUGUI>();
             label.text = value;
             label.fontSize = size;
             label.fontStyle = bold ? FontStyles.Bold : FontStyles.Normal;
@@ -61,9 +68,13 @@ namespace BeatTheBoss.Poses
         }
 
         public TMP_Text Button(Transform parent, string value, float x, float y, float width, float height,
-            UnityAction action, bool primary = false)
+            UnityAction action, bool primary = false) =>
+            CreateButton(primary ? primaryButton : secondaryButton, parent, value, x, y, width, height, action);
+
+        internal static TMP_Text CreateButton(Button prefab, Transform parent, string value,
+            float x, float y, float width, float height, UnityAction action)
         {
-            Button button = Object.Instantiate(primary ? primaryButton : secondaryButton, parent, false);
+            Button button = Object.Instantiate(prefab, parent, false);
             button.name = string.IsNullOrEmpty(value) ? "List row" : value;
             Place((RectTransform)button.transform, x, y, width, height);
             button.onClick.AddListener(action);
@@ -109,15 +120,20 @@ namespace BeatTheBoss.Poses
         }
 
         public Slider Slider(Transform parent, string name, float x, float y, float width, float min, float max,
-            UnityAction<float> changed)
+            UnityAction<float> changed) =>
+            CreateSlider(sliderPrefab, parent, name, x, y, width, min, max, changed);
+
+        internal static Slider CreateSlider(Slider prefab, Transform parent, string name, float x, float y,
+            float width, float min, float max, UnityAction<float> changed)
         {
-            Slider slider = Object.Instantiate(sliderPrefab, parent, false);
+            Slider slider = Object.Instantiate(prefab, parent, false);
             slider.name = name;
             var rect = (RectTransform)slider.transform;
             float height = rect.rect.height;
             Place(rect, x, y + (46 - height) / 2, width, height);
             // Keep the whole 46-pixel row usable for pointing, even though the UI Set track is shorter.
-            Image hitArea = Fill(rect, Color.clear);
+            Image hitArea = rect.gameObject.AddComponent<Image>();
+            hitArea.color = Color.clear;
             hitArea.raycastTarget = true;
             hitArea.raycastPadding = new Vector4(0, (height - 46) / 2, 0, (height - 46) / 2);
             slider.minValue = min;

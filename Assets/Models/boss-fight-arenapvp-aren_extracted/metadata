@@ -1,0 +1,142 @@
+{
+	"assetNamespace": "fab",
+	"listing":
+	{
+		"averageRating": 0,
+		"createdAt": "",
+		"description": "<p>Pretty large, angelic, inspired arena. I thought it would make for a good boss fight or even as a PVP arena.</p>",
+		"isAiForbidden": true,
+		"isAiGenerated": false,
+		"lastUpdatedAt": "",
+		"listingType": "3d-model",
+		"media": "https://media.fab.com/image_previews/gallery_images/8e421da1-e60e-49fd-9330-8bb7dc4c1deb/9be02f21-2f93-4d01-91ba-d8f2023eb248.jpeg",
+		"publishedAt": "2024-11-11T20:32:44.931178Z",
+		"reviewCount": 0,
+		"thumbnail": "https://media.fab.com/image_previews/gallery_images/abab984e-162a-42b1-a97c-8635f5817f97/5ce5bc78-5878-4b9d-af04-71288ecddd80.jpeg",
+		"title": "Boss Fight Arena/PVP Arena",
+		"uid": "772c0ecd-11e4-43bd-aa83-0f90ca2b8ac1",
+		"updatedAt": "",
+		"user":
+		{
+			"coverImageUrl": "",
+			"profileImageUrl": "https://cdn1.epicgames.com/fab/seller/o-zje5smax7hf8xmc6ylqckbdncdsqxt/profile/c478b2d7.jpg",
+			"sellerName": "RedHyacinth",
+			"uid": "63576812-e2ab-405f-9143-cb3477695a78"
+		},
+		"tags": [
+			{
+				"name": "Arena",
+				"slug": "arena",
+				"uid": "22b95366-258d-4d2a-94f1-fa6f44f467db"
+			},
+			{
+				"name": "Stone",
+				"slug": "stone",
+				"uid": "3b7b9846-a26c-48e0-99e0-866350f162aa"
+			},
+			{
+				"name": "Lowpoly",
+				"slug": "lowpoly",
+				"uid": "451806dc-649e-43b7-9c2e-a54485de14b6"
+			},
+			{
+				"name": "Pvp",
+				"slug": "pvp",
+				"uid": "57ebfd92-de0a-4ddb-aeb0-1a6bd12fadca"
+			},
+			{
+				"name": "Stage",
+				"slug": "stage",
+				"uid": "75ed3e3e-a174-451a-8be9-5730ed014d3c"
+			},
+			{
+				"name": "Level",
+				"slug": "level",
+				"uid": "8f2cd337-060b-438b-8d2d-62808026db6f"
+			},
+			{
+				"name": "Battle",
+				"slug": "battle",
+				"uid": "b0cf7ddd-eaeb-4d6e-835c-7411ee6ae197"
+			},
+			{
+				"name": "Simple",
+				"slug": "simple",
+				"uid": "cbf23df6-c55a-49e8-b070-65fa6be73d4c"
+			},
+			{
+				"name": "Heaven",
+				"slug": "heaven",
+				"uid": "d8d7a473-a6fc-480f-92f1-5efce7f663e9"
+			},
+			{
+				"name": "Indie",
+				"slug": "indie",
+				"uid": "db7e1df9-4179-48d7-bb36-db4e38d74233"
+			},
+			{
+				"name": "Boss",
+				"slug": "boss",
+				"uid": "e1786061-f8e6-450b-b556-67af2b20f3ac"
+			},
+			{
+				"name": "Fight",
+				"slug": "fight",
+				"uid": "e2b266a6-bf4d-4cb6-a706-de9d374c94cf"
+			}
+		],
+		"category":
+		{
+			"name": "Buildings & Architecture",
+			"path": "buildings-architecture",
+			"slug": "buildings-architecture",
+			"uid": "eec3bdd5-ba7a-45a8-b15d-67462b9630f6"
+		},
+		"assetFormats": [
+			{
+				"assetFormatType":
+				{
+					"name": "FBX",
+					"groupName": "3D Exchange Formats",
+					"code": "fbx",
+					"icon": "cube",
+					"extensions": [
+						"fbx"
+					]
+				}
+			},
+			{
+				"assetFormatType":
+				{
+					"name": "Converted Files",
+					"groupName": "",
+					"code": "converted-files",
+					"icon": "cube",
+					"extensions": [
+						"gltf",
+						"glb",
+						"usdz"
+					]
+				}
+			}
+		],
+		"_PluginMetas":
+		{
+			"apiDataVersion": "0.0.1",
+			"entitlementUid": "defee60e-279b-4645-840b-14f4567a11a8",
+			"cacheSize": 0,
+			"downloaded": []
+		}
+	},
+	"target": "unity",
+	"quality": "",
+	"format": "fbx",
+	"fileId": "ca630acd-ce03-455e-adb5-ca30c9ec0c4c",
+	"platformIncluded": "",
+	"distributionPointBaseUrls": [],
+	"distributionMethod": "",
+	"entitlementUid": "defee60e-279b-4645-840b-14f4567a11a8",
+	"invertedNormal": false,
+	"isConverted": false,
+	"isQuixel": false
+}

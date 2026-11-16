@@ -114,10 +114,15 @@ namespace BeatTheBoss.Poses
         public void ApplyLive(TrackedPose frame, Transform player)
         {
             Reset();
-            if (frame.TryGet("Hips", out TrackedBone hips) && joints.TryGetValue("Hips", out Transform hipJoint))
+            bool hasHips = frame.TryGet("Hips", out TrackedBone hips);
+            bool hasHead = frame.TryGet("Head", out TrackedBone head);
+            joints.TryGetValue("Skeleton", out Transform skeleton);
+            if (skeleton != null && (!hasHips || !hips.HasTrackingRotation) && hasHead)
+                AlignYaw(skeleton, skeleton, head, player);
+
+            if (hasHips && joints.TryGetValue("Hips", out Transform hipJoint))
                 hipJoint.position = player.TransformPoint(hips.PlayerPose.position);
-            else if (frame.TryGet("Head", out TrackedBone head) && joints.TryGetValue("Head", out Transform headJoint) &&
-                joints.TryGetValue("Skeleton", out Transform skeleton))
+            else if (hasHead && skeleton != null && joints.TryGetValue("Head", out Transform headJoint))
                 skeleton.position += player.TransformPoint(head.PlayerPose.position) - headJoint.position;
 
             universalRotations.Clear();
@@ -131,6 +136,45 @@ namespace BeatTheBoss.Poses
             ApplyRotations(player.rotation, joints, includeHelpers: true);
             AimUntrackedArm("Left", frame, player);
             AimUntrackedArm("Right", frame, player);
+        }
+
+        public void PlaceRetargetedBody(TrackedPose frame, Transform player)
+        {
+            if (!joints.TryGetValue("Skeleton", out Transform skeleton))
+                return;
+
+            joints.TryGetValue("Head", out Transform headJoint);
+            joints.TryGetValue("Hips", out Transform hipJoint);
+            bool hasHead = frame.TryGet("Head", out TrackedBone head) && headJoint != null;
+            bool hasHips = frame.TryGet("Hips", out TrackedBone hips) && hipJoint != null;
+
+            // Match the tracked head's world yaw, then place the body at its tracked anchor.
+            bool aligned = hasHead && AlignYaw(skeleton, headJoint, head, player);
+            if (!aligned && hasHips)
+                AlignYaw(skeleton, hipJoint, hips, player);
+
+            if (hasHips)
+                skeleton.position += player.TransformPoint(hips.PlayerPose.position) - hipJoint.position;
+            else if (hasHead)
+                skeleton.position += player.TransformPoint(head.PlayerPose.position) - headJoint.position;
+        }
+
+        private bool AlignYaw(Transform skeleton, Transform joint, TrackedBone tracked, Transform player)
+        {
+            if (!tracked.HasTrackingRotation)
+                return false;
+
+            // Remove the joint's bind-pose axes to compare the avatar and tracking forward vectors.
+            Quaternion avatarFacing = joint.rotation * Quaternion.Inverse(rest[joint.name].rootRotation);
+            Quaternion trackedFacing = player.rotation * tracked.PlayerPose.rotation;
+            Vector3 avatarForward = Vector3.ProjectOnPlane(avatarFacing * Vector3.forward, Vector3.up);
+            Vector3 trackedForward = Vector3.ProjectOnPlane(trackedFacing * Vector3.forward, Vector3.up);
+            if (avatarForward.sqrMagnitude < 0.0001f || trackedForward.sqrMagnitude < 0.0001f)
+                return false;
+
+            float yaw = Vector3.SignedAngle(avatarForward, trackedForward, Vector3.up);
+            skeleton.rotation = Quaternion.AngleAxis(yaw, Vector3.up) * skeleton.rotation;
+            return true;
         }
 
         public void ApplyCustomMappings(TrackedPose frame, Transform player, BoneMappings mappings)

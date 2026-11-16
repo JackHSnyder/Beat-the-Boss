@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
@@ -9,6 +10,8 @@ using UnityEngine.UI;
 using UnityEngine.XR;
 
 public class SceneHandler : MonoBehaviour {
+    private const string ReducedTransitionsKey = "Accessibility.ReducedTransitions";
+
     [SerializeField, Min(0f)]
     private float fadeOutTime = 2f, fadeInTime = 2f;
     [SerializeField, Min(0f)]
@@ -16,12 +19,26 @@ public class SceneHandler : MonoBehaviour {
     private float fadeInBlackHold = 0.5f;
     [SerializeField] private Shader headsetFadeShader;
     [SerializeField] private Shader headsetFadeInShader;
+    [SerializeField] private Shader reducedFadeShader;
+    [SerializeField, Min(0f)]
+    [Tooltip("Seconds for each half of a reduced transition.")]
+    private float reducedFadeTime = 1.25f;
     
     private static SceneHandler instance;
     private bool transitioning;
     private GameObject fadeObject;
     private Image desktopFade;
     private Material fadeMaterial;
+
+    internal static bool ReducedTransitions
+    {
+        get => PlayerPrefs.GetInt(ReducedTransitionsKey, 0) != 0;
+        set
+        {
+            PlayerPrefs.SetInt(ReducedTransitionsKey, value ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+    }
 
     void Awake() {
         if (instance != null && instance != this) {
@@ -60,21 +77,37 @@ public class SceneHandler : MonoBehaviour {
 
     private IEnumerator SwitchScene(string path)
     {
+        Scene outgoingScene = SceneManager.GetActiveScene();
+        List<SceneBackgroundAudio> backgroundAudio = GetBackgroundAudio(outgoingScene);
+        bool audioFadeInStarted = false;
         try
         {
+            // Use the same preference for both halves of this scene transition.
+            bool reduced = ReducedTransitions;
+            Shader fadeOut = reduced ? reducedFadeShader : headsetFadeShader;
+            Shader fadeIn = reduced || headsetFadeInShader == null ? fadeOut : headsetFadeInShader;
             bool wasInHeadset = XRSettings.isDeviceActive;
-            CreateFade(SceneManager.GetActiveScene(), headsetFadeShader, wasInHeadset, 0f);
-            yield return Fade(0f, 1f, fadeOutTime);
-            // Submit a fully black frame before allowing Unity to replace the outgoing scene.
+            CreateFade(outgoingScene, fadeOut, wasInHeadset, 0f);
+            float audioFadeSeconds = 0f;
+            foreach (SceneBackgroundAudio track in backgroundAudio)
+                audioFadeSeconds = Mathf.Max(audioFadeSeconds, track.FadeOut());
+            double audioFadeEnd = Time.unscaledTimeAsDouble + audioFadeSeconds;
+
+            yield return Fade(0f, 1f, reduced ? reducedFadeTime : fadeOutTime);
+            while (Time.unscaledTimeAsDouble < audioFadeEnd)
+                yield return null;
+            // Let the final black frame and silent audio settle before replacing the scene.
             yield return new WaitForEndOfFrame();
 
             void CoverIncomingScene(Scene scene, LoadSceneMode mode)
             {
                 if (scene.path != path)
                     return;
+                backgroundAudio = GetBackgroundAudio(scene);
+                foreach (SceneBackgroundAudio track in backgroundAudio)
+                    track.DeferStartupFade();
                 // Keep the XR fade if the runtime temporarily reports inactive while changing rigs.
-                CreateFade(scene, headsetFadeInShader != null ? headsetFadeInShader : headsetFadeShader,
-                    wasInHeadset || XRSettings.isDeviceActive, 1f);
+                CreateFade(scene, fadeIn, wasInHeadset || XRSettings.isDeviceActive, 1f);
             }
 
             SceneManager.sceneLoaded += CoverIncomingScene;
@@ -94,13 +127,34 @@ public class SceneHandler : MonoBehaviour {
             yield return new WaitForEndOfFrame();
             if (fadeInBlackHold > 0f)
                 yield return new WaitForSecondsRealtime(fadeInBlackHold);
-            yield return Fade(1f, 0f, fadeInTime);
+            FadeInBackgroundAudio(backgroundAudio);
+            audioFadeInStarted = true;
+            yield return Fade(1f, 0f, reduced ? reducedFadeTime : fadeInTime);
         }
         finally
         {
+            if (!audioFadeInStarted)
+                FadeInBackgroundAudio(backgroundAudio);
             ClearFade();
             transitioning = false;
         }
+    }
+
+    private static List<SceneBackgroundAudio> GetBackgroundAudio(Scene scene)
+    {
+        var tracks = new List<SceneBackgroundAudio>();
+        foreach (GameObject root in scene.GetRootGameObjects())
+            foreach (SceneBackgroundAudio track in root.GetComponentsInChildren<SceneBackgroundAudio>())
+                if (track.isActiveAndEnabled)
+                    tracks.Add(track);
+        return tracks;
+    }
+
+    private static void FadeInBackgroundAudio(List<SceneBackgroundAudio> tracks)
+    {
+        foreach (SceneBackgroundAudio track in tracks)
+            if (track != null)
+                track.FadeIn();
     }
 
     private void CreateFade(Scene scene, Shader shader, bool useHeadset, float initialOpacity)
