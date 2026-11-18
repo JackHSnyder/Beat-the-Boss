@@ -397,7 +397,10 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 978194273, guid: 2b7dd341a94f4ec8b3318ff113ee42f0, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 978194283}
   m_SourcePrefab: {fileID: 100100000, guid: 2b7dd341a94f4ec8b3318ff113ee42f0, type: 3}
 --- !u!1 &978194276
 GameObject:
@@ -455,6 +458,11 @@ MonoBehaviour:
   passthroughMaxOpacity: 0.1
   floorMinOpacity: 0.01
   floorMaxOpacity: 0.3
+--- !u!1 &978194279 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 978194273, guid: 2b7dd341a94f4ec8b3318ff113ee42f0, type: 3}
+  m_PrefabInstance: {fileID: 978194275}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &978194280
 GameObject:
   m_ObjectHideFlags: 0
@@ -501,6 +509,9 @@ MonoBehaviour:
   - destination: 2
     scene: {fileID: 0}
     path: 
+  - destination: 3
+    scene: {fileID: 102900000, guid: 6987160db6d60dc4390447474889ea66, type: 3}
+    path: Assets/Scenes/BossEditorScene.unity
 --- !u!4 &978194282
 Transform:
   m_ObjectHideFlags: 0
@@ -516,6 +527,18 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &978194283
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 978194279}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b61c5354bf2153e49a9e9edb80881bb8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BeatTheBoss.Poses.FloatingObserver
 --- !u!1 &1800568491
 GameObject:
   m_ObjectHideFlags: 0
@@ -628,6 +651,55 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1900000000
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1900000001}
+  - component: {fileID: 1900000002}
+  m_Layer: 0
+  m_Name: Boss Idle Recorder
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1900000001
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1900000000}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1900000002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1900000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a07fa135b84f451cb4be7bdc6707e457, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  tracker: {fileID: 0}
+  recordingName: Boss Idle
+  countdown: 3
+  duration: 8
+  disabledCategories: 01000000i
 --- !u!1 &1910820010
 GameObject:
   m_ObjectHideFlags: 0
@@ -672,7 +744,7 @@ AudioSource:
   serializedVersion: 4
   OutputAudioMixerGroup: {fileID: 0}
   m_audioClip: {fileID: 0}
-  m_Resource: {fileID: 8300000, guid: 4af48bffef8c56a40939e8e93a153f61, type: 3}
+  m_Resource: {fileID: 8300000, guid: 296324e32b2ed0249a4d17584f7ee660, type: 3}
   m_PlayOnAwake: 0
   m_Volume: 0.6
   m_Pitch: 1
@@ -782,3 +854,4 @@ SceneRoots:
   - {fileID: 978194277}
   - {fileID: 978194282}
   - {fileID: 1910820011}
+  - {fileID: 1900000001}

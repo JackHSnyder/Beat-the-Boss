@@ -32,7 +32,12 @@ namespace BeatTheBoss.Poses
         {
             definition.Validate();
             // Snapshot the draft and cache referenced poses for this run so edits take effect on the next test.
-            move = JsonUtility.FromJson<MoveDefinition>(JsonUtility.ToJson(definition));
+            var detection = new MoveDefinition
+            {
+                name = definition.name, timeLimit = definition.timeLimit,
+                cooldown = definition.cooldown, steps = definition.steps
+            };
+            move = JsonUtility.FromJson<MoveDefinition>(JsonUtility.ToJson(detection));
             poses = new PoseMatchProfile[StepCount];
             var cached = new Dictionary<string, PoseMatchProfile>(StringComparer.Ordinal);
             int maxActions = 0;

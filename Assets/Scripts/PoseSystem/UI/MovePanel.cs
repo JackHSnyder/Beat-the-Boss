@@ -5,7 +5,6 @@ using System;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace BeatTheBoss.Poses
 {
@@ -16,6 +15,11 @@ namespace BeatTheBoss.Poses
         private readonly MoveWorkbench moves;
         private readonly PoseWorkbench poses;
         private readonly Action<string, string, Action<string>> editName;
+        private readonly AnimationWorkbench animations;
+        private readonly Action framePreview;
+        private readonly Action<Action> guard;
+        private readonly Action<string,string,string,Action> confirm;
+        private readonly Action<string, MoveAnimation> copyAnimation;
         private RectTransform content;
         private TMP_Text status;
         private int stepIndex = -1;
@@ -28,22 +32,33 @@ namespace BeatTheBoss.Poses
         private Action<string> pick;
         private bool pickingBone;
         private PoseCategory pickerCategory;
+        private bool editingAnimation;
 
         public MovePanel(PosePanelLayout layout, Transform root, MoveWorkbench moves, PoseWorkbench poses,
-            Action<string, string, Action<string>> editName)
+            AnimationWorkbench animations, Action<string, string, Action<string>> editName, Action framePreview,
+            Action<string, MoveAnimation> copyAnimation, Action<Action> guard, Action<string,string,string,Action> confirm)
         {
             this.layout = layout;
             this.root = root;
             this.moves = moves;
             this.poses = poses;
             this.editName = editName;
-            status = layout.Label(root, "", 0, 372, 632, 64, 17);
+            this.animations = animations;
+            this.framePreview = framePreview;
+            this.copyAnimation = copyAnimation; this.guard = guard; this.confirm = confirm;
+            status = layout.Label(root, "", 0, 426, 632, 64, 17);
             Draw();
         }
 
         // Update live feedback separately from the controls so frame updates do not rebuild the editor.
         public void Refresh()
         {
+            if (editingAnimation)
+            {
+                status.text = animations.PreviewStatus ?? moves.Status;
+                return;
+            }
+
             MoveDetector detector = moves.Detector;
             if (detector == null)
             {
@@ -59,6 +74,18 @@ namespace BeatTheBoss.Poses
                 $"Passed {moves.Passes}  ·  Timed out {moves.Timeouts}  ·  {moves.Status}";
         }
 
+        public void EnterPage() => Draw();
+
+        public void LeavePage()
+        {
+            if (editingAnimation)
+            {
+                animations.HidePreview();
+                pick = null;
+            }
+            editingAnimation = false;
+        }
+
         private static string Seconds(double? value) => value.HasValue ? $"{value.Value:0.00}s" : "off";
 
         private void Draw()
@@ -68,12 +95,14 @@ namespace BeatTheBoss.Poses
                 content.gameObject.SetActive(false);
                 UnityEngine.Object.Destroy(content.gameObject);
             }
-            content = layout.Rect(root, "Move editor controls", 0, 0, 632, 372);
+            content = layout.Rect(root, "Move editor controls", 0, 0, 632, 426);
 
             if (pick != null)
                 DrawPicker();
             else if (moves.Draft == null)
                 DrawLibrary();
+            else if (editingAnimation)
+                DrawAnimation();
             else if (actionIndex >= 0)
                 DrawAction();
             else if (stepIndex >= 0)
@@ -86,16 +115,16 @@ namespace BeatTheBoss.Poses
         private void DrawLibrary()
         {
             Title("Moves");
-            Button("New move", 408, 0, 224, () => { moves.NewMove(); ResetEditor(); Draw(); });
+            Button("New move", 408, 0, 224, NewMove);
             Button("Open saved move", 0, 54, 632, OpenSaved);
         }
 
         private void DrawMove()
         {
             MoveDefinition move = moves.Draft;
-            Button("New", 0, 0, 78, () => { moves.NewMove(); ResetEditor(); Draw(); });
+            Button("New", 0, 0, 78, NewMove);
             Button("Open", 86, 0, 78, OpenSaved);
-            Button(move.name, 172, 0, 270, () => editName("Move name", move.name, value =>
+            Button(move.name + (moves.IsDirty ? " *" : ""), 172, 0, 270, () => editName("Move name", move.name, value =>
             {
                 move.name = value;
                 Draw();
@@ -107,15 +136,64 @@ namespace BeatTheBoss.Poses
                 Draw();
             }, true);
 
+            if (moves.LoadedName != null)
+                Button("Delete saved move", 0, 378, 240, () => confirm("Delete move?",
+                    $"Permanently delete '{moves.LoadedName}'? Unsaved edits to it will be lost. Levels using this file may need updating.", "Delete", () =>
+                    { if (moves.DeleteSaved()) { ResetEditor(); Draw(); } }));
             Number("Global timer", $"{move.timeLimit:0.00}s", 49, 0.1f, 1,
                 delta => move.timeLimit = Mathf.Max(0.01f, Adjust(move.timeLimit, delta)));
             Number("Cooldown", $"{move.cooldown:0.00}s", 95, 0.1f, 1,
                 delta => move.cooldown = Mathf.Max(0, Adjust(move.cooldown, delta)));
-            Button("Add pose", 0, 145, 306, () => AddStep(MoveStepKind.Pose));
-            Button("Add action set", 318, 145, 314, () => AddStep(MoveStepKind.ActionSet));
+            Button("Add pose", 0, 145, 198, () => AddStep(MoveStepKind.Pose));
+            Button("Add action set", 208, 145, 204, () => AddStep(MoveStepKind.ActionSet));
+            Button(moves.HasAnimation ? "Animation  ›" : "Choose animation", 422, 145, 210, () =>
+            {
+                editingAnimation = true;
+                Draw();
+            });
             DrawRows(move.steps.Count, stepPage, 3, 193, index =>
                 $"{index + 1}. {StepLabel(move.steps[index])}", index =>
                 { stepIndex = index; actionPage = 0; Draw(); }, page => stepPage = page);
+        }
+
+        private void DrawAnimation()
+        {
+            Button("Back", 0, 0, 82, () => { LeavePage(); Draw(); });
+            layout.Label(content, "Move animation", 94, 0, 530, 40, 22, true);
+            MoveDefinition move = moves.Draft;
+            bool linked = !string.IsNullOrWhiteSpace(move.animationName);
+            string selection = linked ? move.animationName : moves.HasAnimation
+                ? $"Embedded take  ·  {move.animation.Duration:0.00}s" : "No animation selected";
+            layout.Label(content, selection, 0, 52, 632, 42, 20);
+
+            Button("Choose saved animation", 0, 106, 307, () =>
+            {
+                animations.HidePreview();
+                OpenPicker("Saved animations", moves.ListAnimations(), moves.LinkAnimation);
+            }, true);
+            if (!moves.HasAnimation)
+                return;
+
+            Button(linked ? "Unlink" : "Remove animation", 319, 106, 313, () =>
+            {
+                animations.HidePreview();
+                moves.RemoveAnimation();
+                Draw();
+            });
+            Button("Play preview", 0, 156, 307, () =>
+            {
+                moves.StopTest();
+                animations.HidePreview();
+                animations.Play(moves.GetAnimation());
+                Draw();
+            });
+            if (!linked)
+                Button("Copy to Animations", 319, 156, 313, () => copyAnimation(move.name, move.animation));
+            if (animations.PreviewVisible)
+            {
+                Button("Frame preview", 0, 206, 307, framePreview.Invoke);
+                Button("Hide preview", 319, 206, 313, () => { animations.HidePreview(); Draw(); });
+            }
         }
 
         private void DrawStep()
@@ -224,7 +302,8 @@ namespace BeatTheBoss.Poses
             Draw();
         }
 
-        private void OpenSaved() => OpenPicker("Saved moves", moves.ListMoves(), name => { moves.Load(name); ResetEditor(); });
+        private void NewMove() => guard(() => { moves.NewMove(); ResetEditor(); Draw(); });
+        private void OpenSaved() => OpenPicker("Saved moves", moves.ListMoves(), name => guard(() => { moves.Load(name); ResetEditor(); Draw(); }));
 
         private void OpenPicker(string title, string[] items, Action<string> action)
         {
@@ -345,6 +424,7 @@ namespace BeatTheBoss.Poses
 
         private void ResetEditor()
         {
+            editingAnimation = false;
             stepIndex = actionIndex = -1;
             stepPage = actionPage = 0;
         }

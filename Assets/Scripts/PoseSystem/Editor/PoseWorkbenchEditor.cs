@@ -37,7 +37,7 @@ internal sealed class PoseWorkbenchEditor : Editor
         EditorGUILayout.LabelField("Tracking", $"{frame.Mode} · {frame.Bones.Count} joints");
         workbench.CaptureName = EditorGUILayout.TextField("Pose name", workbench.CaptureName);
         workbench.CaptureDelay = Mathf.Max(0, EditorGUILayout.FloatField("Capture delay (s)", workbench.CaptureDelay));
-        if (GUILayout.Button("Capture and save"))
+        if (GUILayout.Button("Capture pose draft"))
             workbench.QueueCapture();
         if (workbench.CaptureIn > 0)
             EditorGUILayout.LabelField($"Capturing in {workbench.CaptureIn:F1}s");
@@ -61,6 +61,7 @@ internal sealed class PoseWorkbenchEditor : Editor
         if (workbench.LoadedPose != null)
         {
             EditorGUILayout.LabelField("Loaded pose", workbench.LoadedPose.name);
+            if (workbench.IsDirty && GUILayout.Button("Save pose")) workbench.SavePose();
             PoseMatcher.Result result = workbench.Match;
             string status = result.Missing > 0 ? "Tracking missing" :
                 result.Compared == 0 && result.ConstraintCount == 0 ? "No checks selected" :

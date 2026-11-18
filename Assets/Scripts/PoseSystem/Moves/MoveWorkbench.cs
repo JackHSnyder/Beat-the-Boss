@@ -13,7 +13,26 @@ namespace BeatTheBoss.Poses
     {
         private PoseStore poses;
         private PoseWorkbench workbench;
-        private string loadedName;
+        private string loadedName, savedState;
+        public string LoadedName => loadedName;
+        public bool IsDirty => Draft != null && (savedState == null || JsonUtility.ToJson(Draft) != savedState);
+        public void DiscardChanges()
+        {
+            StopTest();
+            Draft = savedState == null ? null : JsonUtility.FromJson<MoveDefinition>(savedState);
+            Status = "Unsaved move changes discarded.";
+        }
+        public bool DeleteSaved()
+        {
+            if (loadedName == null) return false;
+            try
+            {
+                MoveStore.Delete(loadedName);
+                StopTest(); Draft = null; loadedName = savedState = null;
+                Status = "Move deleted."; return true;
+            }
+            catch (Exception error) when (IsFileError(error)) { Status = error.Message; return false; }
+        }
 
         public MoveDefinition Draft { get; private set; }
         public MoveDetector Detector { get; private set; }
@@ -22,6 +41,8 @@ namespace BeatTheBoss.Poses
         public int Passes { get; private set; }
         public int Timeouts { get; private set; }
         public event Action<MoveOutcome> MoveFinished;
+        internal bool HasAnimation => Draft?.animation?.HasFrames == true ||
+            !string.IsNullOrWhiteSpace(Draft?.animationName);
 
         private void Awake()
         {
@@ -32,9 +53,12 @@ namespace BeatTheBoss.Poses
         // Consume the frame after the pose workbench has chosen live tracking or model test input.
         private void LateUpdate()
         {
-            if (Detector == null || !workbench.isActiveAndEnabled)
+            if (!workbench.isActiveAndEnabled)
                 return;
-            MoveOutcome outcome = Detector.Tick(workbench.CurrentFrame, Time.unscaledTimeAsDouble,
+            double now = Time.unscaledTimeAsDouble;
+            if (Detector == null)
+                return;
+            MoveOutcome outcome = Detector.Tick(workbench.CurrentFrame, now,
                 workbench.ToleranceDegrees, workbench.SessionIgnoredCategories);
             if (outcome == MoveOutcome.None)
                 return;
@@ -46,13 +70,16 @@ namespace BeatTheBoss.Poses
             MoveFinished?.Invoke(outcome);
         }
 
-        private void OnDisable() => StopTest();
+        private void OnDisable()
+        {
+            StopTest();
+        }
 
         public void NewMove()
         {
             StopTest();
             Draft = new MoveDefinition();
-            loadedName = null;
+            loadedName = savedState = null;
             Status = "Add a pose or action set to begin.";
         }
 
@@ -74,6 +101,7 @@ namespace BeatTheBoss.Poses
                 StopTest();
                 Draft = definition;
                 loadedName = name;
+                savedState = JsonUtility.ToJson(Draft);
                 Status = legacy ? "Loaded " + name + ". Review its actions and recapture any old pose steps." :
                     "Loaded " + name + ".";
             }
@@ -88,15 +116,13 @@ namespace BeatTheBoss.Poses
                     return false;
                 Draft.name = Draft.name?.Trim();
                 Draft.Validate();
+                Draft.animation?.Validate();
                 foreach (MoveStep step in Draft.steps)
                     if (step.kind == MoveStepKind.Pose)
                         poses.Load(step.poseName);
-                string path = MoveStore.PathFor(Draft.name);
-                // Only overwrite the file associated with this draft. A different name goes through the new-file path.
-                bool replace = string.Equals(loadedName, Draft.name, StringComparison.OrdinalIgnoreCase) &&
-                    File.Exists(path);
-                PoseStore.WriteJson(path, Draft, replace);
+                SavedFileNames.Write("move", loadedName, Draft.name, MoveStore.PathFor, Draft);
                 loadedName = Draft.name;
+                savedState = JsonUtility.ToJson(Draft);
                 Status = "Saved " + Draft.name + ".";
                 return true;
             }
@@ -126,6 +152,45 @@ namespace BeatTheBoss.Poses
             Passes = Timeouts = 0;
             LastOutcome = MoveOutcome.None;
             Status = "Detection stopped.";
+        }
+
+        internal string[] ListAnimations()
+        {
+            try { return AnimationStore.List(); }
+            catch (Exception error) when (IsFileError(error))
+            {
+                Status = error.Message;
+                return Array.Empty<string>();
+            }
+        }
+
+        internal void LinkAnimation(string name)
+        {
+            try
+            {
+                AnimationStore.Load(name);
+                Draft.animationName = name;
+                Draft.animation = null;
+                Status = $"Linked {name}. Save the move to keep the link.";
+            }
+            catch (Exception error) when (IsFileError(error)) { Status = error.Message; }
+        }
+
+        internal MoveAnimation GetAnimation()
+        {
+            try { return MoveStore.LoadAnimation(Draft); }
+            catch (Exception error) when (IsFileError(error))
+            {
+                Status = $"Could not open animation '{Draft.animationName}'. {error.Message}";
+                return null;
+            }
+        }
+
+        internal void RemoveAnimation()
+        {
+            Draft.animationName = null;
+            Draft.animation = null;
+            Status = "Animation removed from the draft.";
         }
 
         private static bool IsFileError(Exception error) =>

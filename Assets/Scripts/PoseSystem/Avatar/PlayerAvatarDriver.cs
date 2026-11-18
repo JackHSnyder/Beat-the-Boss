@@ -3,6 +3,7 @@
 
 using Meta.XR.Movement.Retargeting;
 using Oculus.Interaction;
+using Oculus.Interaction.Input;
 using UnityEngine;
 
 namespace BeatTheBoss.Poses
@@ -16,6 +17,7 @@ namespace BeatTheBoss.Poses
 
         private bool retargeterWasEnabled;
         private bool manualControl;
+        private HandJoint[] handJoints;
 
         internal AvatarPoseRig Rig { get; private set; }
 
@@ -37,19 +39,30 @@ namespace BeatTheBoss.Poses
 
             Rig = new AvatarPoseRig(avatar);
             retargeterWasEnabled = avatar.enabled;
+            handJoints = System.Array.FindAll(GetComponentsInChildren<HandJoint>(true), joint =>
+                joint.transform.parent != null && joint.transform.parent.TryGetComponent<PokeInteractor>(out _));
         }
 
         private void OnEnable() => UpdateRetargeter();
-        private void Update() => UpdateRetargeter();
+
+        private void Update()
+        {
+            Rig.RestoreHandPose();
+            UpdateRetargeter();
+        }
 
         private void OnDisable()
         {
             if (Rig != null)
+            {
+                Rig.RestoreHandPose();
                 avatar.enabled = retargeterWasEnabled;
+            }
         }
 
         internal void SetManualControl(bool active)
         {
+            Rig?.RestoreHandPose();
             manualControl = active;
             if (isActiveAndEnabled)
                 UpdateRetargeter();
@@ -76,6 +89,34 @@ namespace BeatTheBoss.Poses
             }
             else
                 Rig.ApplyLive(tracker.Frame, tracker.PlayerSpace);
+
+            if (tracker.Input is PlayerPoseTracker.InputMode.Automatic or PlayerPoseTracker.InputMode.HandsAndHead)
+                AlignHands();
         }
+
+        private void AlignHands()
+        {
+            foreach (HandJoint joint in handJoints)
+            {
+                IHand hand = joint.Hand;
+                if (hand == null || !hand.IsConnected || !hand.IsTrackedDataValid)
+                    continue;
+
+                string side = hand.Handedness == Handedness.Left ? "Left" : "Right";
+                var points = tracker.Points.Points;
+                if (!points.ContainsKey(side + "Hand/Wrist") && !points.ContainsKey(side + "LegacyHand/WristRoot"))
+                    continue;
+                if (HasCustomMapping(side + "Wrist"))
+                    continue;
+
+                Vector3? pokePoint = joint.isActiveAndEnabled ? joint.transform.position : null;
+                bool alignIndex = !HasCustomMapping(side + "IndexProximal") &&
+                    !HasCustomMapping(side + "IndexIntermediate") && !HasCustomMapping(side + "IndexDistal");
+                Rig.AlignTrackedHand(side, hand, pokePoint, tracker.PlayerSpace, alignIndex);
+            }
+        }
+
+        private bool HasCustomMapping(string bone) => tracker.Frame.TryGet(bone, out TrackedBone tracked) &&
+            tracker.Mappings.HasOverride(tracked.SourcePoint);
     }
 }

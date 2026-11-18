@@ -19,8 +19,8 @@ public class MMPanelSwitch : MonoBehaviour
 
     [SerializeField] private Panel mainMenu;
     [SerializeField] private Panel levelSelect;
-    [SerializeField] private Panel loadout;
     [SerializeField] private Panel settings;
+    [SerializeField] private Panel credits;
     [SerializeField, Min(0f), Tooltip("Time in seconds for both panels to slide.")]
     private float slideDuration = 0.6f;
 
@@ -30,7 +30,7 @@ public class MMPanelSwitch : MonoBehaviour
 
     private void Awake()
     {
-        Panel[] panels = { mainMenu, levelSelect, loadout, settings };
+        Panel[] panels = { mainMenu, levelSelect, settings, credits };
         foreach (Panel panel in panels)
         {
             if (panel == null || !panel.IsAssigned)
@@ -52,8 +52,8 @@ public class MMPanelSwitch : MonoBehaviour
 
     public void ShowMainMenu() => ShowPanel(mainMenu);
     public void ShowLevelSelect() => ShowPanel(levelSelect);
-    public void ShowLoadout() => ShowPanel(loadout);
     public void ShowSettings() => ShowPanel(settings);
+    public void ShowCredits() => ShowPanel(credits);
 
     private void ShowPanel(Panel panel)
     {

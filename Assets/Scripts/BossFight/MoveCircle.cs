@@ -108,6 +108,26 @@ public class MoveCircle : MonoBehaviour
         return GetWorldPoint(GetAngle(worldPosition));
     }
 
+    internal bool TryGetForwardEdgeDistance(Vector3 origin, Vector3 direction, out float distance)
+    {
+        // Keep the ray parameter in world metres even if the arena is scaled.
+        Vector3 localOrigin = transform.InverseTransformPoint(origin);
+        Vector3 localDirection = transform.InverseTransformVector(direction);
+        Vector2 offset = new(localOrigin.x, localOrigin.z);
+        Vector2 ray = new(localDirection.x, localDirection.z);
+        float a = ray.sqrMagnitude;
+        float b = Vector2.Dot(offset, ray);
+        float discriminant = b * b - a * (offset.sqrMagnitude - radius * radius);
+        distance = 0f;
+        if (a < 0.000001f || discriminant < 0f)
+            return false;
+
+        float root = Mathf.Sqrt(discriminant);
+        float near = (-b - root) / a;
+        distance = near > 0f ? near : (-b + root) / a;
+        return distance > 0f;
+    }
+
     // Positive direction moves from local +X toward +Z. Negative reverses it.
     public void MovePlayerAlongCircle(float direction)
     {

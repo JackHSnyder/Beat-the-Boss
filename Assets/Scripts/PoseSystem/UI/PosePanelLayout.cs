@@ -69,10 +69,11 @@ namespace BeatTheBoss.Poses
 
         public TMP_Text Button(Transform parent, string value, float x, float y, float width, float height,
             UnityAction action, bool primary = false) =>
-            CreateButton(primary ? primaryButton : secondaryButton, parent, value, x, y, width, height, action);
+            CreateButton(primary ? primaryButton : secondaryButton, parent, value, x, y, width, height, action,
+                primary?MenuButtonStyle.Role.Primary:MenuButtonStyle.Role.Secondary);
 
         internal static TMP_Text CreateButton(Button prefab, Transform parent, string value,
-            float x, float y, float width, float height, UnityAction action)
+            float x, float y, float width, float height, UnityAction action, MenuButtonStyle.Role role=MenuButtonStyle.Role.Secondary)
         {
             Button button = Object.Instantiate(prefab, parent, false);
             button.name = string.IsNullOrEmpty(value) ? "List row" : value;
@@ -81,8 +82,16 @@ namespace BeatTheBoss.Poses
 
             // Keep Meta's visual hierarchy so its hover, press, and disabled animations still target it.
             var content = (RectTransform)button.transform.Find("Content");
-            content.sizeDelta = new Vector2(content.sizeDelta.x, height - 4);
+            button.GetComponent<HorizontalLayoutGroup>().enabled=false;
+            content.GetComponent<HorizontalLayoutGroup>().enabled=false;
+            Stretch(content); content.offsetMin=Vector2.one*2; content.offsetMax=-Vector2.one*2;
+            Stretch((RectTransform)content.Find("Background"));
             var elements = content.Find("Background/Elements");
+            Stretch((RectTransform)elements);
+            float padding=MenuButtonStyle.Shared!=null?MenuButtonStyle.Shared.horizontalPadding:16;
+            padding=Mathf.Min(padding,Mathf.Max(0,(width-4)*.12f));
+            ((RectTransform)elements).offsetMin=new Vector2(padding,4);
+            ((RectTransform)elements).offsetMax=new Vector2(-padding,-4);
             elements.Find("Icon").gameObject.SetActive(false);
             elements.Find("Gap").gameObject.SetActive(false);
             var text = (RectTransform)elements.Find("Text");
@@ -98,6 +107,10 @@ namespace BeatTheBoss.Poses
             label.textWrappingMode = TextWrappingModes.NoWrap;
             label.overflowMode = TextOverflowModes.Truncate;
             label.text = value;
+            MenuButtonVisual.EnsureHitArea(button);
+            var visual=button.GetComponent<MenuButtonVisual>();
+            if(visual==null)visual=button.gameObject.AddComponent<MenuButtonVisual>();
+            visual.Configure(MenuButtonStyle.Shared,role);
             return label;
         }
 
@@ -120,11 +133,11 @@ namespace BeatTheBoss.Poses
         }
 
         public Slider Slider(Transform parent, string name, float x, float y, float width, float min, float max,
-            UnityAction<float> changed) =>
-            CreateSlider(sliderPrefab, parent, name, x, y, width, min, max, changed);
+            UnityAction<float> changed, bool wholeNumbers = true) =>
+            CreateSlider(sliderPrefab, parent, name, x, y, width, min, max, changed, wholeNumbers);
 
         internal static Slider CreateSlider(Slider prefab, Transform parent, string name, float x, float y,
-            float width, float min, float max, UnityAction<float> changed)
+            float width, float min, float max, UnityAction<float> changed, bool wholeNumbers = true)
         {
             Slider slider = Object.Instantiate(prefab, parent, false);
             slider.name = name;
@@ -138,7 +151,7 @@ namespace BeatTheBoss.Poses
             hitArea.raycastPadding = new Vector4(0, (height - 46) / 2, 0, (height - 46) / 2);
             slider.minValue = min;
             slider.maxValue = max;
-            slider.wholeNumbers = true;
+            slider.wholeNumbers = wholeNumbers;
             slider.onValueChanged.AddListener(changed);
             return slider;
         }

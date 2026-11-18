@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3d32fabf22129aa4fa34ad03f97a9ed6, type: 3}
+  m_Name: Menu Button Style
+  m_EditorClassIdentifier: Assembly-CSharp::BeatTheBoss.Poses.MenuButtonStyle
+  background: {r: 0.4528302, g: 0.20291919, b: 0.20291919, a: 0.9019608}
+  primaryBackground: {r: 0.6981132, g: 0.6981132, b: 0.6981132, a: 0.9019608}
+  accentBackground: {r: 0.4716981, g: 0.3270737, b: 0.3270737, a: 0.9019608}
+  text: {r: 0.965, g: 0.97, b: 0.985, a: 1}
+  primaryText: {r: 0.153, g: 0.153, b: 0.153, a: 1}
+  font: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  fontStyle: 32
+  backgroundMaterial: {fileID: 2100000, guid: 2c59325cff8447d47899d7e518a87833, type: 2}
+  cornerRadius: {x: 24, y: 24, z: 24, w: 24}
+  horizontalPadding: 16
+  visualController: {fileID: 9100000, guid: 3e99cead113804c42abb85cf81a50f20, type: 2}

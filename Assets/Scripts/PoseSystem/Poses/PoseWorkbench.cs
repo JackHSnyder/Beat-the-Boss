@@ -23,13 +23,49 @@ namespace BeatTheBoss.Poses
         private PoseStore store;
         private GameObject preview;
         private Dictionary<string, Transform> previewBones;
+        private PreviewBodyMask animationPreviewMask;
         private Coroutine revealPreview;
         private string pendingName;
         private bool replaceLegacyCapture;
         private float captureTime;
         private bool modelTest;
         private float testBend;
-        private string loadedFileName;
+        private string loadedFileName, savedState;
+        private bool captureSetup, legacyDraft;
+        public string LoadedName => loadedFileName;
+        public bool IsDirty => captureSetup || CapturePending || (LoadedPose != null &&
+            (savedState == null || MatchProfile?.IsDirty == true || JsonUtility.ToJson(LoadedPose) != savedState));
+        public void RenameDraft(string name)
+        {
+            if (LoadedPose == null) { CaptureName = name; return; }
+            LoadedPose.name = (name ?? "").Trim(); CaptureName = LoadedPose.name;
+        }
+        public void BeginNewPose()
+        {
+            ClearDraft(); captureSetup = true; Status = "Capture a pose, preview it, then save.";
+        }
+        private void ClearDraft()
+        {
+            pendingName = null; HidePreview(); LoadedPose = null; MatchProfile = null;
+            loadedFileName = savedState = LegacyPoseName = null; captureSetup = legacyDraft = false;
+        }
+        public void DiscardChanges()
+        {
+            pendingName = null;
+            if (savedState != null) SetLoadedPose(loadedFileName, JsonUtility.FromJson<SavedPose>(savedState));
+            else ClearDraft();
+            Status = "Unsaved pose changes discarded.";
+        }
+        public bool DeleteSaved(string name)
+        {
+            try
+            {
+                store.Delete(name);
+                if (loadedFileName == name || LegacyPoseName == name) ClearDraft();
+                Status = "Deleted " + name + "."; return true;
+            }
+            catch (Exception error) when (IsFileError(error)) { Status = error.Message; return false; }
+        }
 
         public string PoseDirectory => Path.Combine(Application.persistentDataPath, "Poses");
         public string Status { get; private set; } = "Ready.";
@@ -66,6 +102,8 @@ namespace BeatTheBoss.Poses
 
         public void QueueCapture() => QueueCapture(CaptureName, CaptureDelay);
 
+        public bool CanChangePose() => !HasUnsavedSettings();
+
         private void Awake()
         {
             store = new PoseStore(PoseDirectory);
@@ -87,7 +125,7 @@ namespace BeatTheBoss.Poses
             {
                 string name = pendingName;
                 pendingName = null;
-                SaveCurrent(name, replaceLegacyCapture);
+                CaptureCurrent(name, replaceLegacyCapture);
             }
 
             if (MatchProfile != null)
@@ -104,8 +142,6 @@ namespace BeatTheBoss.Poses
 
         private void QueueCapture(string poseName, float delaySeconds, bool replaceLegacy)
         {
-            if (HasUnsavedSettings())
-                return;
             pendingName = (poseName ?? "").Trim();
             replaceLegacyCapture = replaceLegacy;
             captureTime = Time.unscaledTime + Mathf.Max(0, delaySeconds);
@@ -147,24 +183,27 @@ namespace BeatTheBoss.Poses
             }
         }
 
-        public void SaveMatchSettings()
-        {
-            if (MatchProfile == null || !MatchProfile.IsDirty)
-                return;
+        public void SaveMatchSettings() => SavePose();
 
+        public void SavePose()
+        {
+            if (LoadedPose == null || !IsDirty) return;
             try
             {
-                // Keep the in-memory edits dirty until the file update succeeds.
-                PoseMatchSettings settings = MatchProfile.Export();
-                store.SaveMatchSettings(loadedFileName, settings);
-                LoadedPose.matchSettings = settings;
-                MatchProfile.MarkSaved();
-                Status = "Saved matching settings for " + LoadedPose.name + ".";
+                LoadedPose.matchSettings = MatchProfile.Export();
+                if (legacyDraft)
+                {
+                    if (LoadedPose.name != loadedFileName)
+                        throw new ArgumentException("Save the updated old pose before renaming it.");
+                    store.ReplaceLegacy(LoadedPose, useDraftSettings: true);
+                }
+                else
+                    store.SaveDraft(LoadedPose, loadedFileName);
+                loadedFileName = LoadedPose.name;
+                savedState = JsonUtility.ToJson(LoadedPose); legacyDraft = captureSetup = false;
+                MatchProfile.MarkSaved(); Status = "Saved " + LoadedPose.name + ".";
             }
-            catch (Exception error) when (IsFileError(error))
-            {
-                Status = "Could not save matching settings. " + error.Message;
-            }
+            catch (Exception error) when (IsFileError(error)) { Status = "Could not save pose. " + error.Message; }
         }
 
         public void RevertMatchSettings()
@@ -183,14 +222,14 @@ namespace BeatTheBoss.Poses
             LegacyPoseName = null;
             loadedFileName = fileName;
             MatchProfile = profile;
+            savedState = JsonUtility.ToJson(pose); captureSetup = legacyDraft = false;
             HidePreview();
         }
 
         private bool HasUnsavedSettings()
         {
-            if (MatchProfile?.IsDirty != true)
-                return false;
-            Status = "Save or revert your matching edits before changing poses.";
+            if (!IsDirty) return false;
+            Status = "Save or discard your pose changes before changing poses.";
             return true;
         }
 
@@ -223,10 +262,45 @@ namespace BeatTheBoss.Poses
             if (LoadedPose == null)
                 return;
 
+            HideAnimationPreview();
+            PreparePreview("Saved pose preview");
+            rig.ApplyPreview(LoadedPose.joints, preview.transform.GetChild(0), previewBones);
+            Status = "Previewing " + LoadedPose.name + ".";
+        }
+
+        internal bool AnimationPreviewVisible => animationPreviewMask != null;
+
+        internal bool ShowAnimationPreview(MoveAnimation animation)
+        {
+            if (!isActiveAndEnabled)
+                return false;
+            HidePreview();
+            PreparePreview("Animation preview");
+            animationPreviewMask = new PreviewBodyMask(preview);
+            if (animationPreviewMask.Apply(animation.disabledCategories))
+                return true;
+            HidePreview();
+            return false;
+        }
+
+        internal void ApplyAnimationPreview(IReadOnlyList<PoseJoint> joints, MoveAnimation animation)
+        {
+            if (AnimationPreviewVisible)
+                rig.ApplyPreview(joints, preview.transform.GetChild(0), previewBones, animation);
+        }
+
+        internal void HideAnimationPreview()
+        {
+            if (AnimationPreviewVisible)
+                HidePreview();
+        }
+
+        private void PreparePreview(string previewName)
+        {
             if (preview == null)
             {
                 // Keep the clone inactive until its live tracking and animation components are removed.
-                preview = new GameObject("Saved pose preview");
+                preview = new GameObject(previewName);
                 preview.SetActive(false);
                 Transform clone = Instantiate(rig.Root.gameObject, preview.transform).transform;
                 foreach (Behaviour behaviour in clone.GetComponentsInChildren<Behaviour>(true))
@@ -238,12 +312,12 @@ namespace BeatTheBoss.Poses
             Transform space = tracker.TrackingSpace;
             preview.transform.SetPositionAndRotation(space.TransformPoint(previewOffset),
                 space.rotation * Quaternion.Euler(0, 180, 0));
-            rig.ApplyPreview(LoadedPose, preview.transform.GetChild(0), previewBones);
-            Status = "Previewing " + LoadedPose.name + ".";
         }
 
         public void HidePreview()
         {
+            animationPreviewMask?.Dispose();
+            animationPreviewMask = null;
             if (revealPreview != null)
             {
                 StopCoroutine(revealPreview);
@@ -296,10 +370,8 @@ namespace BeatTheBoss.Poses
                 SetModelTest(false);
         }
 
-        private void SaveCurrent(string name, bool replaceLegacy)
+        private void CaptureCurrent(string name, bool replaceLegacy)
         {
-            if (HasUnsavedSettings())
-                return;
             if (CurrentFrame.Bones.Count == 0)
             {
                 Status = "Nothing to capture. Wait for tracking or enable model test input.";
@@ -308,17 +380,15 @@ namespace BeatTheBoss.Poses
             try
             {
                 SavedPose captured = SavedPose.Capture(name, CurrentFrame);
-                if (replaceLegacy)
-                    store.ReplaceLegacy(captured);
-                else
-                    store.Save(captured);
-                SetLoadedPose(name, captured);
-                Status = replaceLegacy ? $"Updated {captured.name}. Original backed up. Review its constraints." :
-                    $"Saved {captured.name} with {captured.joints.Length} joints.";
+                if (replaceLegacy) store.PrepareLegacyReplacement(captured);
+                SetLoadedPose(replaceLegacy ? name : null, captured);
+                savedState = null; legacyDraft = replaceLegacy;
+                ShowPreview();
+                Status = $"Captured {captured.name}. Preview it, then choose Save to create the file.";
             }
             catch (Exception error) when (IsFileError(error))
             {
-                Status = "Could not save pose. " + error.Message;
+                Status = "Could not capture pose. " + error.Message;
             }
         }
 

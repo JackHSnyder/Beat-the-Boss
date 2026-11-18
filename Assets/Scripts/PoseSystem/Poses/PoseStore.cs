@@ -36,19 +36,33 @@ namespace BeatTheBoss.Poses
             WriteJson(PathFor(pose.name), pose, replace: false);
         }
 
+        public void SaveDraft(SavedPose pose, string previousName)
+        {
+            Validate(pose); ValidateConstraints(pose.matchSettings);
+            SavedFileNames.Write("pose", previousName, pose.name, PathFor, pose);
+        }
+
+        public void Delete(string name) => File.Delete(PathFor(name));
+
         public bool IsLegacy(string name)
         {
             var header = JsonUtility.FromJson<SavedPose>(File.ReadAllText(PathFor(name)));
             return header?.version == 1;
         }
 
-        public void ReplaceLegacy(SavedPose pose)
+        public void ReplaceLegacy(SavedPose pose, bool useDraftSettings = false)
         {
             Validate(pose);
             string path = PathFor(pose.name);
-            SavedPose previous = JsonUtility.FromJson<SavedPose>(File.ReadAllText(path));
-            if (previous?.version != 1)
+            if (!IsLegacy(pose.name))
                 throw new InvalidDataException("Only an old-format pose can be replaced by this capture.");
+            if (!useDraftSettings) PrepareLegacyReplacement(pose);
+            WriteJson(path, pose, replace: true, backup: path + ".legacy");
+        }
+
+        public void PrepareLegacyReplacement(SavedPose pose)
+        {
+            SavedPose previous = JsonUtility.FromJson<SavedPose>(File.ReadAllText(PathFor(pose.name)));
             if (previous.matchSettings != null)
             {
                 // Category IDs and angle tolerances carry over. Old direction axes were source-specific.
@@ -78,7 +92,6 @@ namespace BeatTheBoss.Poses
                     constraints = constraints.ToArray()
                 };
             }
-            WriteJson(path, pose, replace: true, backup: path + ".legacy");
         }
 
         public void SaveMatchSettings(string name, PoseMatchSettings settings)
@@ -108,7 +121,7 @@ namespace BeatTheBoss.Poses
             }
         }
 
-        public SavedPose Load(string name) => ReadJson(File.ReadAllText(PathFor(name)));
+        public SavedPose Load(string name) => ReadJson(File.ReadAllText(PathFor(SavedFileNames.Resolve("pose", name, PathFor))));
 
         internal static SavedPose ReadJson(string json)
         {

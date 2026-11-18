@@ -1,5 +1,5 @@
 // Builds the recording scene's desktop and headset controls on a Meta UI Set backplate.
-// It routes recording and preview actions through PoseWorkbench and connects the Moves page to MoveWorkbench.
+// It routes pose, move, and animation controls to their workbenches.
 
 using System;
 using System.IO;
@@ -17,7 +17,7 @@ namespace BeatTheBoss.Poses
     [DefaultExecutionOrder(250)]
     public sealed class PoseGamePanel : MonoBehaviour
     {
-        private static readonly Vector2 PanelSize = new(680, 646);
+        private static readonly Vector2 PanelSize = new(680, 700);
         private const float SystemKeyboardOpenTimeout = 2f;
         private static readonly PlayerPoseTracker.InputMode[] InputModes =
         {
@@ -48,25 +48,25 @@ namespace BeatTheBoss.Poses
         private RectTransform panel;
         private RectTransform posePage;
         private RectTransform settingsPage;
-        private RectTransform matchPage;
-        private RectTransform constraintPage;
         private RectTransform keyboardPage;
         private RectTransform movePage;
+        private RectTransform animationPage;
         private RectTransform trackingPage;
         private TMP_Text poseTab;
         private TMP_Text settingsTab;
-        private TMP_Text matchTab;
-        private TMP_Text constraintTab;
         private TMP_Text moveTab;
-        private TMP_Text trackingTab;
-        private PoseMatchPanel matchPanel;
-        private PoseConstraintPanel constraintPanel;
+        private TMP_Text animationTab;
+        private RecordingConfirmation confirmation;
+        private RectTransform currentPage;
+        private MoveWorkbench moves;
+        private AnimationWorkbench animations;
+        private PosePanel posePanel;
         private MovePanel movePanel;
+        private AnimationPanel animationPanel;
         private TrackingMapPanel trackingMap;
         private TMP_Text tracking;
         private TMP_Text footer;
         private TMP_Text recenter;
-        private TMP_Text poseName;
         private TMP_Text keyboardName;
         private TMP_Text keyboardTitle;
         private TMP_InputField keyboardInput;
@@ -76,11 +76,6 @@ namespace BeatTheBoss.Poses
         private TouchScreenKeyboard systemKeyboard;
         private float systemKeyboardDeadline;
         private bool systemKeyboardOpened;
-        private TMP_Text delay;
-        private TMP_Text selectedPose;
-        private TMP_Text preview;
-        private TMP_Text match;
-        private TMP_Text matchDetails;
         private TMP_Text input;
         private TMP_Text tolerance;
         private TMP_Text leftHand;
@@ -90,23 +85,13 @@ namespace BeatTheBoss.Poses
         private TMP_Text[] previewOffsets;
         private Slider toleranceSlider;
         private Slider elbowSlider;
-        private TMP_InputField desktopName;
-        private Button captureButton;
-        private Button previousPose;
-        private Button nextPose;
-        private Button loadPose;
-        private Button recapturePose;
-        private Button previewButton;
-        private Button frameButton;
         private Button openFolder;
-        private string[] savedPoses = Array.Empty<string>();
-        private SavedPose lastLoaded;
-        private int selectedIndex;
         private bool inHeadset;
         private bool needsInitialPlacement;
         private bool capitalLetters = true;
         private TMP_Text[] letterKeys;
         private float nextRefresh;
+        private double recenterAt = -1;
 
         private void Start()
         {
@@ -133,7 +118,6 @@ namespace BeatTheBoss.Poses
             ConfigureInput();
             SetPresentation(HeadsetActive());
             SelectPage(posePage);
-            RefreshPoses();
             UpdateLabels();
         }
 
@@ -142,16 +126,16 @@ namespace BeatTheBoss.Poses
             bool headset = HeadsetActive();
             if (headset != inHeadset)
                 SetPresentation(headset);
+            confirmation?.Tick();
             UpdateSystemKeyboard();
-            if (inHeadset && ((needsInitialPlacement && OVRPlugin.GetNodePositionTracked(OVRPlugin.Node.EyeCenter)) ||
-                OVRInput.GetDown(OVRInput.Button.Two, OVRInput.Controller.RTouch)))
+            if (inHeadset && needsInitialPlacement && OVRPlugin.GetNodePositionTracked(OVRPlugin.Node.EyeCenter))
             {
                 PlacePanel();
                 needsInitialPlacement = false;
             }
+            if (inHeadset && OVRInput.GetDown(OVRInput.Button.Two, OVRInput.Controller.RTouch)) RequestRecenter();
+            TickRecenter();
 
-            if (lastLoaded != workbench.LoadedPose)
-                RefreshPoses();
             if (Time.unscaledTime >= nextRefresh)
             {
                 nextRefresh = Time.unscaledTime + 0.1f;
@@ -162,12 +146,22 @@ namespace BeatTheBoss.Poses
         private void OnEnable()
         {
             if (panelRoot != null)
+            {
                 panelRoot.SetActive(true);
+                if (movePage.gameObject.activeSelf)
+                    movePanel.EnterPage();
+                if (animationPage.gameObject.activeSelf)
+                    animationPanel.EnterPage();
+            }
         }
 
         private void OnDisable()
         {
+            recenterAt = -1;
             CloseSystemKeyboard();
+            confirmation?.Cancel();
+            movePanel?.LeavePage();
+            animationPanel?.LeavePage();
             if (panelRoot != null)
                 panelRoot.SetActive(false);
         }
@@ -191,118 +185,93 @@ namespace BeatTheBoss.Poses
             panel.GetComponent<VerticalLayoutGroup>().enabled = false;
             panel.sizeDelta = PanelSize;
             layout.Label(panel, "Recording tools", 24, 14, 400, 44, 32, true);
-            layout.Button(panel, "Main Menu", 365, 22, 130, 38,
-                () => SceneHandler.TransitionTo(SceneDestination.MainMenu));
-            recenter = layout.Button(panel, "Recenter (B)", 505, 22, 151, 38, PlacePanel);
+            layout.Button(panel, "Exit", 365, 22, 130, 38, RequestBack);
+            recenter = layout.Button(panel, "Recenter (B)", 505, 22, 151, 38, RequestRecenter);
             tracking = layout.Label(panel, "", 24, 58, 632, 28);
             tracking.color = PosePanelLayout.Muted;
-            poseTab = layout.Button(panel, "Poses", 24, 96, 88, 42, () => SelectPage(posePage));
-            matchTab = layout.Button(panel, "Matching", 120, 96, 102, 42, () => SelectPage(matchPage));
-            constraintTab = layout.Button(panel, "Constraints", 230, 96, 120, 42, () => SelectPage(constraintPage));
-            moveTab = layout.Button(panel, "Moves", 358, 96, 88, 42, () => SelectPage(movePage));
-            trackingTab = layout.Button(panel, "Tracking", 454, 96, 102, 42, () => SelectPage(trackingPage));
-            settingsTab = layout.Button(panel, "Settings", 564, 96, 92, 42, () => SelectPage(settingsPage));
-            footer = layout.Label(panel, "", 24, 589, 632, 46, 17);
+            poseTab = layout.Button(panel, "Poses", 24, 96, 150, 42, () => SelectPage(posePage));
+            moveTab = layout.Button(panel, "Moves", 184, 96, 150, 42, () => SelectPage(movePage));
+            animationTab = layout.Button(panel, "Animations", 344, 96, 150, 42, () => SelectPage(animationPage));
+            settingsTab = layout.Button(panel, "Settings", 504, 96, 152, 42, () => SelectPage(settingsPage));
+            footer = layout.Label(panel, "", 24, 643, 632, 46, 17);
             footer.color = PosePanelLayout.Muted;
 
-            posePage = layout.Rect(panel, "Poses page", 24, 150, 632, 432);
-            matchPage = layout.Rect(panel, "Matching page", 24, 150, 632, 436);
-            constraintPage = layout.Rect(panel, "Constraints page", 24, 150, 632, 436);
-            settingsPage = layout.Rect(panel, "Settings page", 24, 150, 632, 432);
-            movePage = layout.Rect(panel, "Moves page", 24, 150, 632, 436);
-            trackingPage = layout.Rect(panel, "Tracking map page", 24, 150, 632, 436);
+            posePage = layout.Rect(panel, "Poses page", 24, 150, 632, 490);
+            settingsPage = layout.Rect(panel, "Settings page", 24, 150, 632, 490);
+            movePage = layout.Rect(panel, "Moves page", 24, 150, 632, 490);
+            animationPage = layout.Rect(panel, "Animations page", 24, 150, 632, 436);
+            trackingPage = layout.Rect(panel, "Tracking map page", 24, 150, 632, 490);
             keyboardPage = layout.Rect(panel, "Name keyboard", 24, 150, 632, 432);
-            BuildPosePage();
-            matchPanel = new PoseMatchPanel(workbench, layout, matchPage);
-            constraintPanel = new PoseConstraintPanel(workbench, layout, constraintPage);
-            var moves = workbench.GetComponent<MoveWorkbench>();
+            posePanel = new PosePanel(layout, posePage, workbench,
+                (title, value, accept) => EditName(posePage, title, value, accept), FramePreview, GuardPose, ShowConfirmation);
+            moves = workbench.GetComponent<MoveWorkbench>();
             if (moves == null)
                 moves = workbench.gameObject.AddComponent<MoveWorkbench>();
-            movePanel = new MovePanel(layout, movePage, moves, workbench,
-                (title, value, accept) => EditName(movePage, title, value, accept));
-            trackingMap = new TrackingMapPanel(layout, trackingPage, workbench.Tracker);
+            animations = workbench.GetComponent<AnimationWorkbench>();
+            if (animations == null)
+                animations = workbench.gameObject.AddComponent<AnimationWorkbench>();
+            animationPanel = new AnimationPanel(layout, animationPage, animations,
+                (title, value, accept) => EditName(animationPage, title, value, accept), FramePreview, GuardAnimation, ShowConfirmation);
+            movePanel = new MovePanel(layout, movePage, moves, workbench, animations,
+                (title, value, accept) => EditName(movePage, title, value, accept), FramePreview, (name, clip) =>
+                {
+                    GuardCurrent(animationPage, () => GuardAnimation(() =>
+                    {
+                        animations.CopyEmbedded(name, clip);
+                        ShowPage(animationPage);
+                    }));
+                }, GuardMove, ShowConfirmation);
+            layout.Button(trackingPage, "Back to Settings", 0, 0, 166, 40, () => SelectPage(settingsPage));
+            layout.Label(trackingPage, "Tracking mappings", 184, 0, 448, 40, 23, true);
+            trackingMap = new TrackingMapPanel(layout,
+                layout.Rect(trackingPage, "Tracking controls", 0, 54, 632, 436), workbench.Tracker);
             BuildSettingsPage();
             BuildKeyboard();
-        }
-
-        private void BuildPosePage()
-        {
-            layout.Label(posePage, "Pose name", 0, 0, 144, 44);
-            desktopName = layout.NameField(posePage, 150, 0, 482, 44);
-            desktopName.onValueChanged.AddListener(value => workbench.CaptureName = value);
-            poseName = layout.Button(posePage, "Edit pose name", 150, 0, 482, 44,
-                () => EditName(posePage, "Pose name", workbench.CaptureName, value => workbench.CaptureName = value));
-
-            layout.Label(posePage, "Capture delay", 0, 54, 144, 44);
-            layout.Button(posePage, "−", 150, 54, 48, 44, () => AdjustDelay(-1));
-            delay = layout.Label(posePage, "", 204, 54, 86, 44);
-            delay.alignment = TextAlignmentOptions.Midline;
-            layout.Button(posePage, "+", 296, 54, 48, 44, () => AdjustDelay(1));
-            captureButton = layout.Button(posePage, "Capture and save", 356, 54, 276, 44, workbench.QueueCapture, true)
-                .GetComponentInParent<Button>();
-
-            layout.Label(posePage, "Saved poses", 0, 115, 405, 32, 23, true);
-            layout.Button(posePage, "Refresh", 514, 112, 118, 40, RefreshPoses);
-            previousPose = layout.Button(posePage, "‹", 0, 161, 46, 48, () => MoveSelection(-1))
-                .GetComponentInParent<Button>();
-            selectedPose = layout.Label(posePage, "", 58, 161, 350, 48);
-            nextPose = layout.Button(posePage, "›", 420, 161, 46, 48, () => MoveSelection(1))
-                .GetComponentInParent<Button>();
-            loadPose = layout.Button(posePage, "Load selected", 480, 161, 152, 48, LoadSelected)
-                .GetComponentInParent<Button>();
-            recapturePose = layout.Button(posePage, "Recapture old pose", 319, 223, 313, 46,
-                workbench.RecaptureLegacyPose).GetComponentInParent<Button>();
-            preview = layout.Button(posePage, "Show avatar preview", 0, 223, 305, 46, TogglePreview);
-            previewButton = preview.GetComponentInParent<Button>();
-            frameButton = layout.Button(posePage, "Frame preview", 319, 223, 313, 46, FramePreview)
-                .GetComponentInParent<Button>();
-
-            layout.Fill(layout.Rect(posePage, "Match background", 0, 286, 632, 134), PosePanelLayout.Surface);
-            match = layout.Label(posePage, "", 14, 294, 604, 38, 23, true);
-            matchDetails = layout.Label(posePage, "", 14, 333, 604, 77, 17);
-            matchDetails.alignment = TextAlignmentOptions.TopLeft;
+            confirmation = new RecordingConfirmation(layout, panel);
         }
 
         private void BuildSettingsPage()
         {
-            layout.Label(settingsPage, "Tracking input", 0, 0, 218, 46);
-            input = layout.Button(settingsPage, "Automatic", 218, 0, 414, 46, CycleInput);
+            layout.Button(settingsPage, "Tracking mappings  ›", 0, 0, 632, 42, () => SelectPage(trackingPage));
+            layout.Label(settingsPage, "Tracking input", 0, 54, 218, 46);
+            input = layout.Button(settingsPage, "Automatic", 218, 54, 414, 46, CycleInput);
 
-            layout.Label(settingsPage, "Fallback tolerance", 0, 56, 218, 46);
-            toleranceSlider = layout.Slider(settingsPage, "Tolerance", 218, 56, 326, 0, 180,
+            layout.Label(settingsPage, "Fallback tolerance", 0, 110, 218, 46);
+            toleranceSlider = layout.Slider(settingsPage, "Tolerance", 218, 110, 326, 0, 180,
                 value => workbench.ToleranceDegrees = value);
-            tolerance = layout.Label(settingsPage, "", 558, 56, 74, 46);
+            tolerance = layout.Label(settingsPage, "", 558, 110, 74, 46);
 
-            layout.Label(settingsPage, "Session hand checks", 0, 112, 218, 46);
-            leftHand = layout.Button(settingsPage, "Left hand included", 218, 112, 200, 46, () => ToggleHand(PoseCategory.LeftHand));
-            rightHand = layout.Button(settingsPage, "Right hand included", 432, 112, 200, 46, () => ToggleHand(PoseCategory.RightHand));
+            layout.Label(settingsPage, "Session hand checks", 0, 166, 218, 46);
+            leftHand = layout.Button(settingsPage, "Left hand included", 218, 166, 200, 46, () => ToggleHand(PoseCategory.LeftHand));
+            rightHand = layout.Button(settingsPage, "Right hand included", 432, 166, 200, 46, () => ToggleHand(PoseCategory.RightHand));
 
-            layout.Label(settingsPage, "Model test input", 0, 168, 218, 46);
-            modelTest = layout.Button(settingsPage, "Off", 218, 168, 414, 46,
+            layout.Label(settingsPage, "Model test input", 0, 222, 218, 46);
+            modelTest = layout.Button(settingsPage, "Off", 218, 222, 414, 46,
                 () => workbench.SetModelTest(!workbench.ModelTest));
 
-            layout.Label(settingsPage, "Test left elbow", 0, 224, 218, 46);
-            elbowSlider = layout.Slider(settingsPage, "Test left elbow", 218, 224, 326, -90, 90, workbench.SetTestBend);
-            elbow = layout.Label(settingsPage, "", 558, 224, 74, 46);
+            layout.Label(settingsPage, "Test left elbow", 0, 278, 218, 46);
+            elbowSlider = layout.Slider(settingsPage, "Test left elbow", 218, 278, 326, -90, 90, workbench.SetTestBend);
+            elbow = layout.Label(settingsPage, "", 558, 278, 74, 46);
 
-            layout.Label(settingsPage, "Preview offset (m)", 0, 280, 212, 46);
+            layout.Label(settingsPage, "Preview offset (m)", 0, 334, 212, 46);
             previewOffsets = new TMP_Text[3];
             for (int axis = 0; axis < previewOffsets.Length; axis++)
             {
                 int index = axis;
                 float x = 218 + axis * 140;
-                layout.Button(settingsPage, "−", x, 280, 32, 46, () => AdjustOffset(index, -0.1f));
-                TMP_Text value = layout.Label(settingsPage, "", x + 34, 280, 60, 46, 16);
+                layout.Button(settingsPage, "−", x, 334, 32, 46, () => AdjustOffset(index, -0.1f));
+                TMP_Text value = layout.Label(settingsPage, "", x + 34, 334, 60, 46, 16);
                 value.alignment = TextAlignmentOptions.Midline;
                 previewOffsets[axis] = value;
-                layout.Button(settingsPage, "+", x + 94, 280, 32, 46, () => AdjustOffset(index, 0.1f));
+                layout.Button(settingsPage, "+", x + 94, 334, 32, 46, () => AdjustOffset(index, 0.1f));
             }
 
-            layout.Label(settingsPage, "Pose files", 0, 345, 148, 34, 21, true);
-            openFolder = layout.Button(settingsPage, "Open pose folder", 438, 341, 194, 40, OpenPoseFolder)
+            layout.Label(settingsPage, "Saved game files", 0, 392, 310, 34, 21, true);
+            openFolder = layout.Button(settingsPage, "Open save folder", 438, 388, 194, 40, OpenSaveFolder)
                 .GetComponentInParent<Button>();
-            TMP_Text path = layout.Label(settingsPage, workbench.PoseDirectory, 0, 385, 632, 46, 16);
+            TMP_Text path = layout.Label(settingsPage, Application.persistentDataPath, 0, 434, 632, 34, 14);
             path.color = PosePanelLayout.Muted;
+            layout.Label(settingsPage, "Poses / Moves / Animations / BossTimelines / Tracking", 0, 470, 632, 20, 14).color = PosePanelLayout.Muted;
         }
 
         private void BuildKeyboard()
@@ -445,6 +414,7 @@ namespace BeatTheBoss.Poses
         private void SetPresentation(bool headset)
         {
             inHeadset = headset;
+            recenterAt = -1;
             needsInitialPlacement = headset;
             rayTarget.enabled = pokeTarget.enabled = gazeTarget.enabled = headset;
             mouseModule.enabled = !headset;
@@ -466,15 +436,24 @@ namespace BeatTheBoss.Poses
                 panel.anchorMin = panel.anchorMax = panel.pivot = new Vector2(0, 0.5f);
                 panel.anchoredPosition = new Vector2(24, 0);
             }
-            desktopName.gameObject.SetActive(!headset);
             keyboardInput.gameObject.SetActive(!headset);
             keyboardName.gameObject.SetActive(headset);
-            poseName.GetComponentInParent<Button>(true).gameObject.SetActive(headset);
             recenter.GetComponentInParent<Button>(true).gameObject.SetActive(headset);
             openFolder.gameObject.SetActive(!headset);
         }
 
         // Place the world-space panel from the current headset heading when opening or recentering.
+        private void RequestRecenter()
+        {
+            if (inHeadset && recenterAt < 0) recenterAt=Time.unscaledTimeAsDouble+3;
+        }
+        private void TickRecenter()
+        {
+            if (recenterAt>=0 && Time.unscaledTimeAsDouble>=recenterAt)
+            { recenterAt=-1; PlacePanel(); needsInitialPlacement=false; }
+            if (recenter != null)
+                recenter.text=recenterAt<0?"Recenter (B)":$"Recenter in {Mathf.CeilToInt((float)(recenterAt-Time.unscaledTimeAsDouble))}…";
+        }
         private void PlacePanel()
         {
             Transform eye = headsetCamera.transform;
@@ -484,13 +463,76 @@ namespace BeatTheBoss.Poses
             canvas.transform.SetPositionAndRotation(position, Quaternion.LookRotation(forward, Vector3.up));
         }
 
-        private void SelectPage(RectTransform page)
+        private void ShowConfirmation(string title, string text, string accept, Action action)
         {
             CloseSystemKeyboard();
+            confirmation.Show(title, text, accept, action);
+        }
+        private void GuardUnsaved(string kind, bool dirty, Action discard, Action next)
+        {
+            if (confirmation.IsOpen) return;
+            if (!dirty) { next(); return; }
+            ShowConfirmation("Discard unsaved changes?",
+                $"Your {kind} has unsaved changes. Discard them and continue?", "Discard", () => { discard(); next(); });
+        }
+        private void GuardPose(Action next) => GuardUnsaved("pose", workbench.IsDirty, workbench.DiscardChanges, next);
+        private void GuardMove(Action next) => GuardUnsaved("move", moves.IsDirty, moves.DiscardChanges, next);
+        private void GuardAnimation(Action next) => GuardUnsaved("animation", animations.IsDirty, animations.DiscardChanges, next);
+        private RectTransform LogicalPage(RectTransform page) => page == keyboardPage ? nameReturnPage : page;
+        private void GuardCurrent(RectTransform next, Action action)
+        {
+            RectTransform outgoing = LogicalPage(currentPage);
+            if (outgoing == LogicalPage(next)) { action(); return; }
+            if (outgoing == posePage) GuardPose(action);
+            else if (outgoing == movePage) GuardMove(action);
+            else if (outgoing == animationPage) GuardAnimation(action);
+            else action();
+        }
+        private void ApplyPendingName()
+        {
+            if (currentPage == keyboardPage) acceptName?.Invoke(nameBuffer ?? "");
+        }
+        private void RequestBack()
+        {
+            if (confirmation.IsOpen) return;
+            ApplyPendingName();
+            var changed = new System.Collections.Generic.List<string>();
+            if (workbench.IsDirty) changed.Add("pose");
+            if (moves.IsDirty) changed.Add("move");
+            if (animations.IsDirty) changed.Add("animation");
+            if (changed.Count == 0) { SceneHandler.ReturnFromRecording(); return; }
+            ShowConfirmation("Leave recording tools?", "Discard unsaved changes to your " + string.Join(", ", changed) + " and go back?",
+                "Discard and leave", () =>
+                {
+                    workbench.DiscardChanges(); moves.DiscardChanges(); animations.DiscardChanges();
+                    SceneHandler.ReturnFromRecording();
+                });
+        }
+        private void SelectPage(RectTransform page)
+        {
+            if (confirmation.IsOpen) return;
+            if (page == keyboardPage) { ShowPage(page); return; }
+            if (currentPage == keyboardPage && page != nameReturnPage) ApplyPendingName();
+            GuardCurrent(page, () => ShowPage(page));
+        }
+
+        private void ShowPage(RectTransform page)
+        {
+            CloseSystemKeyboard();
+            currentPage = page;
+            if (page == movePage)
+                movePanel.EnterPage();
+            else if (movePage.gameObject.activeSelf && page != keyboardPage)
+                movePanel.LeavePage();
+            if (page == animationPage)
+                animationPanel.EnterPage();
+            else if (page != keyboardPage &&
+                (animationPage.gameObject.activeSelf || (keyboardPage.gameObject.activeSelf && nameReturnPage == animationPage)))
+                animationPanel.LeavePage();
+            if (page == posePage) posePanel.EnterPage();
             posePage.gameObject.SetActive(page == posePage);
-            matchPage.gameObject.SetActive(page == matchPage);
-            constraintPage.gameObject.SetActive(page == constraintPage);
             movePage.gameObject.SetActive(page == movePage);
+            animationPage.gameObject.SetActive(page == animationPage);
             trackingPage.gameObject.SetActive(page == trackingPage);
             settingsPage.gameObject.SetActive(page == settingsPage);
             keyboardPage.gameObject.SetActive(page == keyboardPage);
@@ -498,43 +540,10 @@ namespace BeatTheBoss.Poses
                 ? PosePanelLayout.Accent : PosePanelLayout.Muted;
             moveTab.color = page == movePage || (page == keyboardPage && nameReturnPage == movePage)
                 ? PosePanelLayout.Accent : PosePanelLayout.Muted;
-            matchTab.color = page == matchPage ? PosePanelLayout.Accent : PosePanelLayout.Muted;
-            constraintTab.color = page == constraintPage ? PosePanelLayout.Accent : PosePanelLayout.Muted;
-            settingsTab.color = page == settingsPage ? PosePanelLayout.Accent : PosePanelLayout.Muted;
-            trackingTab.color = page == trackingPage ? PosePanelLayout.Accent : PosePanelLayout.Muted;
+            animationTab.color = page == animationPage || (page == keyboardPage && nameReturnPage == animationPage)
+                ? PosePanelLayout.Accent : PosePanelLayout.Muted;
+            settingsTab.color = page == settingsPage || page == trackingPage ? PosePanelLayout.Accent : PosePanelLayout.Muted;
             UpdateLabels();
-        }
-
-        private void RefreshPoses()
-        {
-            string preferred = workbench.LoadedPose != lastLoaded ? workbench.LoadedPose?.name :
-                savedPoses.Length > 0 ? savedPoses[selectedIndex] : null;
-            lastLoaded = workbench.LoadedPose;
-            savedPoses = workbench.ListPoses();
-            int retained = Array.IndexOf(savedPoses, preferred);
-            selectedIndex = retained >= 0 ? retained : Mathf.Clamp(selectedIndex, 0, Mathf.Max(0, savedPoses.Length - 1));
-            UpdateLabels();
-        }
-
-        private void MoveSelection(int direction)
-        {
-            if (savedPoses.Length > 1)
-                selectedIndex = (selectedIndex + direction + savedPoses.Length) % savedPoses.Length;
-            UpdateLabels();
-        }
-
-        private void LoadSelected()
-        {
-            if (savedPoses.Length != 0)
-                workbench.Load(savedPoses[selectedIndex]);
-        }
-
-        private void TogglePreview()
-        {
-            if (workbench.Preview != null)
-                workbench.HidePreview();
-            else
-                workbench.ShowPreview();
         }
 
         private void FramePreview() => workbench.FramePreview(headsetCamera);
@@ -549,12 +558,6 @@ namespace BeatTheBoss.Poses
         private void ToggleHand(PoseCategory category)
         {
             workbench.SetSessionCategoryIgnored(category, !workbench.IsExplicitlySessionIgnored(category));
-            UpdateLabels();
-        }
-
-        private void AdjustDelay(float change)
-        {
-            workbench.CaptureDelay = Mathf.Max(0, workbench.CaptureDelay + change);
             UpdateLabels();
         }
 
@@ -587,43 +590,20 @@ namespace BeatTheBoss.Poses
                 key.text = capitalLetters ? key.text.ToUpperInvariant() : key.text.ToLowerInvariant();
         }
 
-        private void OpenPoseFolder()
+        private void OpenSaveFolder()
         {
-            if (Directory.Exists(workbench.PoseDirectory))
-                Application.OpenURL(new Uri(workbench.PoseDirectory + Path.DirectorySeparatorChar).AbsoluteUri);
+            if (Directory.Exists(Application.persistentDataPath))
+                Application.OpenURL(new Uri(Application.persistentDataPath + Path.DirectorySeparatorChar).AbsoluteUri);
         }
 
         private void UpdateLabels()
         {
             TrackedPose current = workbench.CurrentFrame;
             tracking.text = $"{TrackingLabel(current.Mode)}  ·  {current.Bones.Count} joints";
-            if ((matchPage.gameObject.activeSelf || constraintPage.gameObject.activeSelf) && workbench.LoadedPose != null)
-            {
-                tracking.text += $"  ·  {MatchLabel(workbench.Match)}";
-                if (workbench.MatchProfile.IsDirty)
-                    tracking.text += "  ·  Unsaved";
-            }
             footer.text = workbench.CapturePending ? $"Capturing in {workbench.CaptureIn:F1}s" : workbench.Status;
-            string name = workbench.CaptureName;
-            if (!desktopName.isFocused)
-                desktopName.SetTextWithoutNotify(name);
-            poseName.text = string.IsNullOrWhiteSpace(name) ? "Enter pose name" : name + "  ·  Edit";
             keyboardName.text = nameBuffer ?? "";
             if (!keyboardInput.isFocused)
                 keyboardInput.SetTextWithoutNotify(nameBuffer ?? "");
-            delay.text = $"{workbench.CaptureDelay:0.#} s";
-            captureButton.interactable = !workbench.CapturePending && !string.IsNullOrWhiteSpace(name);
-            previousPose.interactable = nextPose.interactable = savedPoses.Length > 1;
-            loadPose.interactable = savedPoses.Length > 0;
-            selectedPose.text = savedPoses.Length == 0 ? "No saved poses" :
-                $"{savedPoses[selectedIndex]}  ({selectedIndex + 1}/{savedPoses.Length})";
-            preview.text = workbench.Preview == null ? "Show avatar preview" : "Hide avatar preview";
-            previewButton.interactable = workbench.LoadedPose != null;
-            frameButton.interactable = headsetCamera != null && workbench.Preview != null && workbench.Preview.activeInHierarchy;
-            bool legacySelected = savedPoses.Length > 0 && savedPoses[selectedIndex] == workbench.LegacyPoseName;
-            recapturePose.gameObject.SetActive(legacySelected);
-            recapturePose.interactable = !workbench.CapturePending;
-            frameButton.gameObject.SetActive(!legacySelected);
             input.text = workbench.TrackingInput switch
             {
                 PlayerPoseTracker.InputMode.HandsAndHead => "Head and hands  ›",
@@ -642,50 +622,19 @@ namespace BeatTheBoss.Poses
             previewOffsets[0].text = $"X {workbench.PreviewOffset.x:0.0}";
             previewOffsets[1].text = $"Y {workbench.PreviewOffset.y:0.0}";
             previewOffsets[2].text = $"Z {workbench.PreviewOffset.z:0.0}";
-            openFolder.interactable = savedPoses.Length > 0;
-            UpdateMatch();
-            if (matchPage.gameObject.activeSelf)
-                matchPanel.Refresh();
-            if (constraintPage.gameObject.activeSelf)
-                constraintPanel.Refresh();
+            openFolder.interactable = Directory.Exists(Application.persistentDataPath);
+            if (posePage.gameObject.activeSelf)
+                posePanel.Refresh();
             if (movePage.gameObject.activeSelf)
                 movePanel.Refresh();
+            if (animationPage.gameObject.activeSelf)
+                animationPanel.Refresh();
             if (trackingPage.gameObject.activeSelf)
                 trackingMap.Refresh();
         }
 
         private string HandLabel(PoseCategory category) =>
             PoseMatchProfile.Label(category) + (workbench.IsSessionIgnored(category) ? " ignored" : " included");
-
-        private void UpdateMatch()
-        {
-            if (workbench.LoadedPose == null)
-            {
-                match.text = "No pose loaded";
-                match.color = PosePanelLayout.Foreground;
-                matchDetails.text = "";
-                return;
-            }
-
-            PoseMatcher.Result result = workbench.Match;
-            string state = MatchLabel(result);
-            match.text = $"{state}  ·  {workbench.LoadedPose.name}";
-            match.color = result.IsMatch ? PosePanelLayout.Accent : PosePanelLayout.Warning;
-            string detail = $"{result.Compared} compared  ·  {result.Missing} missing  ·  {result.OutsideTolerance} over individual limits";
-            if (result.ConstraintCount > 0)
-                detail += $"\nConstraints  ·  {result.PassedConstraints}/{result.ConstraintCount} passing";
-            if (result.FirstFailedCategory is PoseCategory failed)
-                detail += $"\nFailed category  ·  {PoseMatchProfile.Label(failed)}";
-            if (result.FirstMissingJoint != null)
-                detail += $"\nFirst missing  ·  {result.FirstMissingJoint}";
-            else if (result.ConstraintCount == 0 && result.WorstJoint != null)
-                detail += $"\nLargest error {result.WorstError:F1}°  ·  {result.WorstJoint}";
-            matchDetails.text = detail;
-        }
-
-        private static string MatchLabel(PoseMatcher.Result result) => result.Missing > 0 ? "Tracking missing" :
-            result.Compared == 0 && result.ConstraintCount == 0 ? "No checks selected" : result.IsMatch ? "Match" :
-            result.PassedConstraints < result.ConstraintCount ? $"Constraint {result.FirstFailedConstraint + 1} failed" : "Outside tolerance";
 
         private static string TrackingLabel(TrackingMode mode) => mode switch
         {

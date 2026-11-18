@@ -25,10 +25,12 @@ public class SceneHandler : MonoBehaviour {
     private float reducedFadeTime = 1.25f;
     
     private static SceneHandler instance;
+    internal static bool IsTransitioning => instance != null && instance.transitioning;
     private bool transitioning;
     private GameObject fadeObject;
     private Image desktopFade;
     private Material fadeMaterial;
+    private string recordingReturnPath;
 
     internal static bool ReducedTransitions
     {
@@ -68,16 +70,30 @@ public class SceneHandler : MonoBehaviour {
             return;
         }
 
-        if (SceneManager.GetActiveScene().path == path)
-            return;
+        instance.BeginTransition(path);
+    }
 
-        instance.transitioning = true;
-        instance.StartCoroutine(instance.SwitchScene(path));
+    public static void ReturnFromRecording()
+    {
+        if (instance == null) { TransitionTo(SceneDestination.MainMenu); return; }
+        string path=instance.recordingReturnPath;
+        // Opening RecordingScene directly in the Editor has no caller.
+        if (string.IsNullOrEmpty(path) || !Application.CanStreamedLevelBeLoaded(path))
+        { TransitionTo(SceneDestination.MainMenu); return; }
+        instance.BeginTransition(path);
+    }
+
+    private void BeginTransition(string path)
+    {
+        if (transitioning || SceneManager.GetActiveScene().path == path) return;
+        transitioning=true;
+        StartCoroutine(SwitchScene(path));
     }
 
     private IEnumerator SwitchScene(string path)
     {
         Scene outgoingScene = SceneManager.GetActiveScene();
+        string outgoingPath=outgoingScene.path;
         List<SceneBackgroundAudio> backgroundAudio = GetBackgroundAudio(outgoingScene);
         bool audioFadeInStarted = false;
         try
@@ -103,6 +119,8 @@ public class SceneHandler : MonoBehaviour {
             {
                 if (scene.path != path)
                     return;
+                if (path==GetScenePath(SceneDestination.Recording) && outgoingPath!=path)
+                    recordingReturnPath=outgoingPath;
                 backgroundAudio = GetBackgroundAudio(scene);
                 foreach (SceneBackgroundAudio track in backgroundAudio)
                     track.DeferStartupFade();

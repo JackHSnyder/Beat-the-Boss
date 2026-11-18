@@ -4,7 +4,8 @@ using UnityEngine;
 public enum SceneDestination {
     MainMenu,
     Recording,
-    Boss
+    Boss,
+    BossEditor
 }
 
 public class SceneLoadTrigger : MonoBehaviour

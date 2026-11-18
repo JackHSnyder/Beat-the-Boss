@@ -14,8 +14,11 @@ namespace BeatTheBoss.Poses
     {
         [Tooltip("Optional when the scene contains exactly one active player tracker.")]
         [SerializeField] private PlayerPoseTracker tracker;
-        [Tooltip("Watch only the assignments made in the main menu Loadout.")]
+        [Tooltip("Watch the selected level's authored loadout slots.")]
         [SerializeField] private bool useLoadout;
+        [Tooltip("Loadout used when this scene is opened directly. Main menu selection takes precedence for the same scene.")]
+        [SerializeField] private LevelLoadout defaultLevelLoadout;
+        [SerializeField] private UnityEvent<string> onLevelSlotPerformed = new();
         [Tooltip("Names of moves saved on this device through the recording tools.")]
         [SerializeField] private string[] savedMoveNames = Array.Empty<string>();
         [Tooltip("Move JSON files included in the project for use in a build.")]
@@ -26,13 +29,16 @@ namespace BeatTheBoss.Poses
         [SerializeField] private UnityEvent<string> onMovePerformed = new();
 
         private PlayerPoseTracker activeTracker;
-        private List<(string Name, MoveDetector Detector, MoveSlot? Slot)> detectors;
+        private List<(string Name, MoveDetector Detector, LevelLoadout.Slot Slot)> detectors;
 
         /// <summary>Raised with the saved move name each time its full sequence passes.</summary>
         public event Action<string> MovePerformed;
 
         /// <summary>Raised with the loadout slot when its assigned move passes.</summary>
         public event Action<MoveSlot> LoadoutMovePerformed;
+
+        /// <summary>Raised with the authored slot ID, including custom slots.</summary>
+        public event Action<string> LevelSlotMovePerformed;
 
         private void Start() => BeginDetection();
 
@@ -45,7 +51,7 @@ namespace BeatTheBoss.Poses
 
         private void BeginDetection()
         {
-            detectors = new List<(string, MoveDetector, MoveSlot?)>();
+            detectors = new List<(string, MoveDetector, LevelLoadout.Slot)>();
             activeTracker = tracker;
             if (activeTracker == null)
             {
@@ -61,9 +67,21 @@ namespace BeatTheBoss.Poses
             var devicePoses = new PoseStore(Path.Combine(Application.persistentDataPath, "Poses"));
             if (useLoadout)
             {
-                foreach (MoveSlot slot in MoveLoadout.Slots)
+                LevelLoadout level = MoveLoadout.ForScene(gameObject.scene.path, defaultLevelLoadout);
+                if (level == null || level.ScenePath != gameObject.scene.path)
                 {
-                    string name = MoveLoadout.Get(slot);
+                    Debug.LogError("Assign this scene's default level loadout to Move Detection.", this);
+                    return;
+                }
+                try { level.Validate(); }
+                catch (ArgumentException error)
+                {
+                    Debug.LogError(error.Message, this);
+                    return;
+                }
+                foreach (LevelLoadout.Slot slot in level.Slots)
+                {
+                    string name = MoveLoadout.Get(level, slot);
                     if (!string.IsNullOrEmpty(name))
                         TryAddMove(name, () => MoveStore.Load(name, out _), devicePoses.Load, slot);
                 }
@@ -99,7 +117,7 @@ namespace BeatTheBoss.Poses
         }
 
         private void TryAddMove(string label, Func<MoveDefinition> loadMove, Func<string, SavedPose> loadPose,
-            MoveSlot? slot = null)
+            LevelLoadout.Slot slot = null)
         {
             try
             {
@@ -130,9 +148,23 @@ namespace BeatTheBoss.Poses
                     continue;
 
                 MovePerformed?.Invoke(entry.Name);
+                if (!isActiveAndEnabled || detectors != activeDetectors)
+                    return;
                 onMovePerformed.Invoke(entry.Name);
-                if (entry.Slot is MoveSlot slot)
-                    LoadoutMovePerformed?.Invoke(slot);
+                // A callback can disable this component or load another scene.
+                if (!isActiveAndEnabled || detectors != activeDetectors)
+                    return;
+                if (entry.Slot != null)
+                {
+                    LevelSlotMovePerformed?.Invoke(entry.Slot.Id);
+                    if (!isActiveAndEnabled || detectors != activeDetectors)
+                        return;
+                    onLevelSlotPerformed.Invoke(entry.Slot.Id);
+                    if (!isActiveAndEnabled || detectors != activeDetectors)
+                        return;
+                    if (entry.Slot.Action != MoveSlot.None)
+                        LoadoutMovePerformed?.Invoke(entry.Slot.Action);
+                }
                 // A listener may disable or restart this component while handling the move.
                 if (!isActiveAndEnabled || detectors != activeDetectors)
                     return;

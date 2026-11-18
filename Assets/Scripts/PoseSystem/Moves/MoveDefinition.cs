@@ -20,6 +20,8 @@ namespace BeatTheBoss.Poses
         public float timeLimit = 5;
         public float cooldown = 0.5f;
         public List<MoveStep> steps = new();
+        public string animationName;
+        public MoveAnimation animation;
 
         // Validate before saving or testing so every step can be evaluated.
         public void Validate()

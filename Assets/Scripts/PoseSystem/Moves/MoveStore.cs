@@ -11,11 +11,17 @@ namespace BeatTheBoss.Poses
         private const string Prefix = "move-";
         private static string DirectoryPath => Path.Combine(Application.persistentDataPath, "Moves");
 
+        internal static string ResolveName(string name) => SavedFileNames.Resolve("move", name, PathFor);
+        internal static void Delete(string name) => File.Delete(PathFor(name));
+
         public static string[] List() => PoseStore.ListFiles(DirectoryPath, Prefix);
         public static string PathFor(string name) => PoseStore.NamedPath(DirectoryPath, Prefix, name, "move");
 
         public static MoveDefinition Load(string name, out bool legacy) =>
-            ReadJson(File.ReadAllText(PathFor(name)), out legacy);
+            ReadJson(File.ReadAllText(PathFor(ResolveName(name))), out legacy);
+
+        internal static MoveAnimation LoadAnimation(MoveDefinition move) =>
+            string.IsNullOrWhiteSpace(move.animationName) ? move.animation : AnimationStore.Load(move.animationName);
 
         public static MoveDefinition ReadJson(string json, out bool legacy)
         {
@@ -26,6 +32,7 @@ namespace BeatTheBoss.Poses
 
             legacy = definition.version == 1;
             definition.UpdateLegacyBoneIds();
+            definition.animation?.Validate();
             return definition;
         }
     }

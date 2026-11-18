@@ -71,9 +71,12 @@ namespace BeatTheBoss.Poses
         public PoseMatchSettings matchSettings;
 
         // Store neutral-relative rotations and the player-space anchors used by partial-body previews.
-        public static SavedPose Capture(string name, TrackedPose frame)
+        public static SavedPose Capture(string name, TrackedPose frame) =>
+            new() { name = name, joints = CaptureJoints(frame) };
+
+        internal static PoseJoint[] CaptureJoints(TrackedPose frame)
         {
-            var joints = new List<PoseJoint>();
+            var joints = new List<PoseJoint>(frame.Bones.Count);
             foreach (TrackedBone bone in frame.Bones.Values)
             {
                 if (!bone.HasLocalRotation)
@@ -87,7 +90,7 @@ namespace BeatTheBoss.Poses
                     position = bone.ParentId == null ? bone.PlayerPose.position : Vector3.zero
                 });
             }
-            return new SavedPose { name = name, joints = joints.ToArray() };
+            return joints.ToArray();
         }
     }
 
