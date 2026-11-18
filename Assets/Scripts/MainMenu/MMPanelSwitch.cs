@@ -23,6 +23,10 @@ public class MMPanelSwitch : MonoBehaviour
     [SerializeField] private Panel credits;
     [SerializeField, Min(0f), Tooltip("Time in seconds for both panels to slide.")]
     private float slideDuration = 0.6f;
+    [SerializeField, Tooltip("Shared active panel center height above the tracking floor.")]
+    private float activePanelHeight = 1.2f;
+    [SerializeField] private MenuHeightAdjustment menuHeight = new();
+    private Camera headsetCamera;
 
     private Panel activePanel;
     private Panel incomingPanel;
@@ -42,8 +46,14 @@ public class MMPanelSwitch : MonoBehaviour
         }
 
         activePanel = mainMenu;
+        var rig = UnityEngine.Object.FindAnyObjectByType<OVRCameraRig>();
+        if (rig != null && rig.centerEyeAnchor != null)
+            headsetCamera = rig.centerEyeAnchor.GetComponent<Camera>();
         foreach (Panel panel in panels)
         {
+            Vector3 active = panel.activePosition.position;
+            active.y = (rig != null && rig.trackingSpace != null ? rig.trackingSpace.position.y : 0f) + activePanelHeight;
+            panel.activePosition.position = active;
             bool show = panel == activePanel;
             panel.content.position = (show ? panel.activePosition : panel.inactivePosition).position;
             panel.root.SetActive(show);
@@ -62,7 +72,7 @@ public class MMPanelSwitch : MonoBehaviour
 
         incomingPanel = panel;
         elapsed = 0f;
-        incomingPanel.content.position = incomingPanel.inactivePosition.position;
+        incomingPanel.content.position = incomingPanel.inactivePosition.position + Vector3.up * menuHeight.Offset;
         incomingPanel.root.SetActive(true);
 
         if (slideDuration <= 0f)
@@ -71,8 +81,19 @@ public class MMPanelSwitch : MonoBehaviour
 
     private void Update()
     {
+        if (headsetCamera == null)
+        {
+            var rig = UnityEngine.Object.FindAnyObjectByType<OVRCameraRig>();
+            if (rig != null && rig.centerEyeAnchor != null)
+                headsetCamera = rig.centerEyeAnchor.GetComponent<Camera>();
+        }
+        menuHeight.Tick(headsetCamera);
         if (incomingPanel == null)
+        {
+            if (activePanel != null)
+                activePanel.content.position = activePanel.activePosition.position + Vector3.up * menuHeight.Offset;
             return;
+        }
 
         elapsed += Time.unscaledDeltaTime;
         MovePanels(slideDuration <= 0f ? 1f : Mathf.Clamp01(elapsed / slideDuration));
@@ -83,9 +104,9 @@ public class MMPanelSwitch : MonoBehaviour
         // Both panels use the same eased progress so they start and finish together.
         float eased = Mathf.SmoothStep(0f, 1f, progress);
         activePanel.content.position = Vector3.Lerp(
-            activePanel.activePosition.position, activePanel.inactivePosition.position, eased);
+            activePanel.activePosition.position, activePanel.inactivePosition.position, eased) + Vector3.up * menuHeight.Offset;
         incomingPanel.content.position = Vector3.Lerp(
-            incomingPanel.inactivePosition.position, incomingPanel.activePosition.position, eased);
+            incomingPanel.inactivePosition.position, incomingPanel.activePosition.position, eased) + Vector3.up * menuHeight.Offset;
 
         if (progress < 1f)
             return;

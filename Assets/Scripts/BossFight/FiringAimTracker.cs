@@ -53,7 +53,7 @@ public sealed class FiringAimTracker : MonoBehaviour
                 !rig.TryGetJoint(aim.boneName, out Transform joint) || joint == null)
                 continue;
 
-            Vector3 direction = joint.TransformDirection(aim.localDirection.normalized);
+            Vector3 direction = rig.AimDirection(aim.boneName,aim.localDirection.normalized);
             RememberDirection(aim.boneName, direction, now);
             FiringTarget target = FindBestTarget(joint.position, direction);
             if (target != null)

@@ -9,9 +9,11 @@ namespace BeatTheBoss.Poses
     {
         private readonly (SkinnedMeshRenderer Renderer, Mesh Source)[] meshes;
         private readonly List<Mesh> copies = new();
+        private readonly Dictionary<Transform,string> boneNames=new();
 
-        public PreviewBodyMask(GameObject preview)
+        public PreviewBodyMask(GameObject preview,IReadOnlyDictionary<string,Transform> mappedBones=null)
         {
+            if (mappedBones!=null) foreach(var pair in mappedBones) boneNames[pair.Value]=pair.Key;
             meshes = Array.ConvertAll(preview.GetComponentsInChildren<SkinnedMeshRenderer>(true),
                 renderer => (renderer, renderer.sharedMesh));
         }
@@ -57,7 +59,7 @@ namespace BeatTheBoss.Poses
             return true;
         }
 
-        private static bool[] IncludedVertices(SkinnedMeshRenderer renderer, Mesh source,
+        private bool[] IncludedVertices(SkinnedMeshRenderer renderer, Mesh source,
             IReadOnlyCollection<PoseCategory> disabled)
         {
             var visible = new bool[source.vertexCount];
@@ -78,11 +80,11 @@ namespace BeatTheBoss.Poses
             return visible;
         }
 
-        private static PoseCategory BoneCategory(Transform bone)
+        private PoseCategory BoneCategory(Transform bone)
         {
             for (; bone != null; bone = bone.parent)
             {
-                string name = bone.name;
+                string name = boneNames.TryGetValue(bone,out var mapped)?mapped:bone.name;
                 // The stylized mesh uses deformation copies for some finger joints.
                 if (name.EndsWith("Def", StringComparison.Ordinal))
                     name = name[..^3];

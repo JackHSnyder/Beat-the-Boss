@@ -276,7 +276,7 @@ namespace BeatTheBoss.Poses
                 return false;
             HidePreview();
             PreparePreview("Animation preview");
-            animationPreviewMask = new PreviewBodyMask(preview);
+            animationPreviewMask = new PreviewBodyMask(preview,previewBones);
             if (animationPreviewMask.Apply(animation.disabledCategories))
                 return true;
             HidePreview();

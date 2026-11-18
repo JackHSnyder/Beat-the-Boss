@@ -21,7 +21,7 @@ public sealed class LevelSelectPanel : MonoBehaviour
 
     private const float Inset = 38f;
     private const float HeaderHeight = 96f;
-    private const float ListTop = 282f;
+    private const float ListTop = 374f;
     private const float RowHeight = 132f;
     private const float PanelGap = 240f;
 
@@ -55,6 +55,12 @@ public sealed class LevelSelectPanel : MonoBehaviour
     private readonly List<LevelLoadout> runtimeLoadouts=new();
     private RectTransform rows;
     private bool built;
+    private Transform assetsPanel;
+    private RectTransform assetsBackplate;
+    private CanvasGroup assetsVisibility;
+    private DownloadedAssetsPanel assetBrowser;
+    private bool assetsOpen;
+    private float assetsProgress;
     private void Awake()
     {
         center = listPanel.localPosition;
@@ -68,6 +74,7 @@ public sealed class LevelSelectPanel : MonoBehaviour
         loadoutPanel.gameObject.SetActive(false);
         ConfigurePoke(listPanel);
         BuildList();
+        BuildAssets();
         BuildDetails();
         built=true;
         RefreshLevels();
@@ -83,6 +90,8 @@ public sealed class LevelSelectPanel : MonoBehaviour
     private void OnDisable()
     {
         selectedLevel = null;
+        assetsOpen=false; assetsProgress=0;
+        if (assetsPanel!=null) assetsPanel.gameObject.SetActive(false);
         splitProgress = loadoutProgress = 0f; loadoutOpen = false;
         if (loadoutPanel != null) { loadoutPanel.localScale = loadoutScale; loadoutPanel.gameObject.SetActive(false); }
         listPanel.SetLocalPositionAndRotation(center, front);
@@ -96,13 +105,16 @@ public sealed class LevelSelectPanel : MonoBehaviour
 
     private void Update()
     {
-        if (selectedLevel == null) return;
+        if (selectedLevel == null && !assetsOpen && assetsProgress==0) return;
         bool reduced = SceneHandler.ReducedTransitions;
-        splitProgress = reduced ? 1f : Mathf.MoveTowards(splitProgress, 1f, Time.unscaledDeltaTime / .36f);
+        float target=selectedLevel!=null?1:0;
+        splitProgress = reduced ? target : Mathf.MoveTowards(splitProgress,target,Time.unscaledDeltaTime/.36f);
+        assetsProgress=reduced?(assetsOpen?1:0):Mathf.MoveTowards(assetsProgress,assetsOpen?1:0,Time.unscaledDeltaTime/.36f);
         loadoutProgress = reduced ? (loadoutOpen ? 1f : 0f) :
             Mathf.MoveTowards(loadoutProgress, loadoutOpen ? 1f : 0f, Time.unscaledDeltaTime / .36f);
         PositionPanels(splitProgress);
         if (!loadoutOpen && loadoutProgress == 0f) loadoutPanel.gameObject.SetActive(false);
+        if (!assetsOpen && assetsProgress==0) assetsPanel.gameObject.SetActive(false);
     }
 
     private void PositionPanels(float progress)
@@ -127,7 +139,36 @@ public sealed class LevelSelectPanel : MonoBehaviour
         loadoutVisibility.alpha = Mathf.InverseLerp(.3f,.85f,expand);
         loadoutVisibility.interactable = loadoutVisibility.blocksRaycasts = loadoutOpen && loadoutProgress >= 1f;
         loadoutButton.text = loadoutOpen ? "Close Loadout" : "Choose Loadout";
+        if (assetsProgress>0)
+        {
+            float reveal=Mathf.SmoothStep(0,1,assetsProgress);
+            listPanel.localPosition=Vector3.Lerp(listPanel.localPosition,center+offset,reveal);
+            listPanel.localRotation=Quaternion.Slerp(listPanel.localRotation,Quaternion.AngleAxis(17,Vector3.up)*front,reveal);
+            assetsPanel.SetLocalPositionAndRotation(center-offset*reveal,Quaternion.AngleAxis(-17*reveal,Vector3.up)*front);
+            assetsVisibility.alpha=Mathf.InverseLerp(.4f,1,reveal);
+            assetsVisibility.interactable=assetsVisibility.blocksRaycasts=assetsOpen && assetsProgress>=1;
+        }
     }
+    private void BuildAssets()
+    {
+        // Clone the existing blank Meta panel before its details controls are populated.
+        assetsPanel=Instantiate(detailsPanel.gameObject,detailsPanel.parent,false).transform;
+        assetsPanel.name="Downloaded Assets Panel";
+        assetsBackplate=assetsPanel.GetComponentsInChildren<RectTransform>(true).First(r=>r.name==detailsBackplate.name);
+        assetsVisibility=assetsBackplate.GetComponent<CanvasGroup>();
+        assetsVisibility.alpha=0;
+        assetBrowser=assetsPanel.gameObject.AddComponent<DownloadedAssetsPanel>();
+        assetBrowser.Configure(assetsBackplate,buttonPrefab,listBackplate,HideAssets);
+        ConfigurePoke(assetsPanel); assetsPanel.gameObject.SetActive(false);
+    }
+    public void ShowAssets()
+    {
+        selectedLevel=null; loadoutOpen=false;
+        detailsPanel.gameObject.SetActive(false); loadoutPanel.gameObject.SetActive(false);
+        loadoutProgress=0; assetsOpen=true;
+        assetsPanel.gameObject.SetActive(true); assetBrowser.Refresh();
+    }
+    public void HideAssets() { assetsOpen=false; }
     private void AlignInnerBottomCorner(Transform panel, RectTransform backplate, bool left, float weight)
     {
         Transform space=listPanel.parent;
@@ -178,7 +219,8 @@ public sealed class LevelSelectPanel : MonoBehaviour
             downloadWidth, HeaderHeight, 26, () => downloadStatus.text = "Level downloads are coming soon.");
         AddButton(listBackplate,"New Level",Inset,150,(width-16)/2,80,26,CreateLevel,MenuButtonStyle.Role.Accent);
         AddButton(listBackplate,"Refresh Levels",Inset+(width+16)/2,150,(width-16)/2,80,26,RefreshLevels);
-        downloadStatus = PosePanelLayout.CreateLabel(listBackplate, "", Inset, 236,
+        AddButton(listBackplate,"Show downloaded assets",Inset,242,width,80,26,ShowAssets);
+        downloadStatus = PosePanelLayout.CreateLabel(listBackplate, "", Inset, 328,
             width, 38, 23);
         downloadStatus.color = PosePanelLayout.Muted;
         downloadStatus.alignment = TextAlignmentOptions.MidlineRight;
@@ -296,6 +338,7 @@ public sealed class LevelSelectPanel : MonoBehaviour
 
     private void SelectLevel(LevelEntry level)
     {
+        assetsOpen=false;
         if (level.document!=null && level.loadout==null)
         {
             level.loadout=LevelLoadout.FromTimeline(level.document,DefaultTemplate);

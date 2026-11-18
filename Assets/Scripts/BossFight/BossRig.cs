@@ -24,13 +24,20 @@ namespace BeatTheBoss.Poses
         private readonly Dictionary<Transform, Pose> previous = new();
         private bool initialized;
 
+        internal void Rebind(Transform root)
+        {
+            rigRoot=root; initialized=false; previous.Clear();
+            MapStylized(); Initialize();
+        }
+
         [ContextMenu("Map stylized character bones")]
         public void MapStylized()
         {
             if (rigRoot == null) rigRoot = transform;
             bones.Clear();
+            var mapping=rigRoot.GetComponentInChildren<CharacterBoneMap>(true);
             foreach (Transform joint in rigRoot.GetComponentsInChildren<Transform>(true))
-                if (BoneMappings.Avatar.TryGetValue(joint.name, out string id))
+                if (BoneMappings.Avatar.TryGetValue(mapping!=null?mapping.NameOf(joint):joint.name, out string id))
                     bones.Add(new Binding { boneId = id, joint = joint });
         }
 

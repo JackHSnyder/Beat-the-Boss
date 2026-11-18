@@ -16,6 +16,7 @@ namespace BeatTheBoss.Poses
     {
         public BossTimelineWorkbench workbench;
         public Camera headsetCamera;
+        [SerializeField] private MenuHeightAdjustment menuHeight = new();
         public GameObject backplatePrefab, nameFieldPrefab;
         public UnityEngine.UI.Button primaryButtonPrefab, secondaryButtonPrefab;
         public UnityEngine.UI.Slider sliderPrefab;
@@ -223,6 +224,7 @@ namespace BeatTheBoss.Poses
             Place(main,eye,yaw*new Vector3(-.34f,-.20f,1.7f));
             Place(details,eye,yaw*new Vector3(.48f,.02f,1.65f));
             Place(navigation,eye,yaw*new Vector3(-1.23f,.02f,1.55f));
+            menuHeight.Recenter(headsetCamera);
             placementPending = false;
             SetPanelsVisible(true);
         }
@@ -238,6 +240,12 @@ namespace BeatTheBoss.Poses
         }
         private void LateUpdate()
         {
+            if (built && inHeadset && !placementPending)
+            {
+                Vector3 shift = Vector3.up * menuHeight.Tick(headsetCamera);
+                foreach (Surface surface in new[] { main, details, navigation })
+                    surface.canvas.transform.position += shift;
+            }
             if (!built || !placementPending || headsetCamera == null) return;
             var head = UnityEngine.XR.InputDevices.GetDeviceAtXRNode(UnityEngine.XR.XRNode.Head);
             bool tracked = head.TryGetFeatureValue(UnityEngine.XR.CommonUsages.isTracked,out bool valid) && valid;
@@ -416,6 +424,25 @@ namespace BeatTheBoss.Poses
         {
             detailsDirty = false; Clear(properties);
             if (view=="name") { DrawNameEditor(); return; }
+            if (view is "songs" or "characters")
+            {
+                bool character=view=="characters";
+                detailTitle.text=character?"Choose boss model":"Choose song";
+                Button(properties,"Back",0,0,178,40,() => OpenDetails("encounter"));
+                Button(properties,"Refresh",194,0,178,40,() => { DownloadedAssetLibrary.Refresh(); detailsDirty=true; });
+                var assets=DownloadedAssetLibrary.All.Where(a=>a.character==character).ToArray();
+                // Picker paginates names, but callbacks resolve the entry itself so duplicate titles are safe.
+                var titles=assets.Select((a,i)=>$"{i+1}. {a.title}"+
+                    (a.id==(character?workbench.boss.bossModelId:workbench.boss.songId)?"  ✓":"")).ToArray();
+                Picker(titles,title =>
+                {
+                    var asset=assets[Array.IndexOf(titles,title)];
+                    if (character) workbench.SetBossModel(asset.id); else workbench.SetSong(asset.id);
+                    OpenDetails("encounter");
+                });
+                if (!character) Button(properties,"No song",0,584,372,42,() => { workbench.SetSong(null); OpenDetails("encounter"); });
+                return;
+            }
             if (view=="files")
             {
                 detailTitle.text = "Timeline files";
@@ -439,10 +466,11 @@ namespace BeatTheBoss.Poses
                 Label(properties,"Starting idle",0,164,372,30,17);
                 Button(properties,string.IsNullOrEmpty(workbench.boss.idle.savedName) ? "Choose animation" : workbench.boss.idle.savedName,0,200,372,44,() => PickAnimation(true));
                 Number("Dummy start angle",$"{workbench.boss.dummyStartAngle:0}°",278,() => workbench.SetDummyStart(workbench.boss.dummyStartAngle-15),() => workbench.SetDummyStart(workbench.boss.dummyStartAngle+15));
-                Button(properties,"Name / Rename timeline",0,372,372,42,EditName);
-                RecenterButton(properties,"Recenter panels",0,436,372,42);
-                Button(properties,"Recordings",0,500,178,42,() => Leave(SceneDestination.Recording));
-                Button(properties,"Main menu",194,500,178,42,() => Leave(SceneDestination.MainMenu)); return;
+                Button(properties,"Song: "+DownloadedAssetLibrary.Title(workbench.boss.songId),0,372,372,42,() => OpenDetails("songs"));
+                Number("Song delay",$"{workbench.boss.songDelay:0.##} seconds",430,
+                    () => workbench.SetSongDelay(workbench.boss.songDelay-.5f),() => workbench.SetSongDelay(workbench.boss.songDelay+.5f));
+                Button(properties,"Boss: "+DownloadedAssetLibrary.Title(workbench.boss.bossModelId,true),0,526,372,42,() => OpenDetails("characters"));
+                Button(properties,"Name / Rename timeline",0,584,372,42,EditName); return;
             }
             var cue = workbench.Selected;
             if (cue==null)

@@ -29,6 +29,7 @@ namespace BeatTheBoss.Poses
 
         [SerializeField] private PoseWorkbench workbench;
         [SerializeField] private Camera headsetCamera;
+        [SerializeField] private MenuHeightAdjustment menuHeight = new();
 
         [Header("Meta UI Set prefabs")]
         [SerializeField] private GameObject backplatePrefab;
@@ -135,6 +136,8 @@ namespace BeatTheBoss.Poses
             }
             if (inHeadset && OVRInput.GetDown(OVRInput.Button.Two, OVRInput.Controller.RTouch)) RequestRecenter();
             TickRecenter();
+            if (inHeadset && !needsInitialPlacement)
+                canvas.transform.position += Vector3.up * menuHeight.Tick(headsetCamera);
 
             if (Time.unscaledTime >= nextRefresh)
             {
@@ -461,6 +464,7 @@ namespace BeatTheBoss.Poses
             Vector3 position = eye.position + heading * new Vector3(-0.39f, -0.17f, 1.23f);
             Vector3 forward = Vector3.ProjectOnPlane(position - eye.position, Vector3.up);
             canvas.transform.SetPositionAndRotation(position, Quaternion.LookRotation(forward, Vector3.up));
+            menuHeight.Recenter(headsetCamera);
         }
 
         private void ShowConfirmation(string title, string text, string accept, Action action)

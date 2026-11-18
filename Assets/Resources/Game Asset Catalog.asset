@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c78c934e476e094fa00348114b1906a, type: 3}
+  m_Name: Game Asset Catalog
+  m_EditorClassIdentifier: Assembly-CSharp::BeatTheBoss.Poses.GameAssetCatalog
+  songs:
+  - id: song-ethreal
+    title: ethreal
+    clip: {fileID: 8300000, guid: 296324e32b2ed0249a4d17584f7ee660, type: 3}
+  - id: song-chill
+    title: chill
+    clip: {fileID: 8300000, guid: cb7d206cf81da4e44ac0316e70572b14, type: 3}
+  characters:
+  - id: character-stylized
+    title: StylizedCharacter
+    prefab: {fileID: 1019368882090018644, guid: 0e5c330c8ce917042b667b967e11994f, type: 3}
+    protectedAsset: 1
+  - id: character-realistic
+    title: RealisticCharacter
+    prefab: {fileID: 5908669579253988712, guid: 084df26ad6ec4934e907a71743377c44, type: 3}
+    protectedAsset: 0
+  - id: character-tony
+    title: Tony
+    prefab: {fileID: 7842382183517282239, guid: 46708fb7162670f47985e2ea5e810420, type: 3}
+    protectedAsset: 0

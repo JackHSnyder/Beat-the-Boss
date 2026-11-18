@@ -11,6 +11,9 @@ namespace BeatTheBoss.Poses
         {
             public int version = 1;
             public string name, levelId;
+            public string songId;
+            public string bossModelId = DownloadedAssetLibrary.DefaultCharacter;
+            public float songDelay;
             public LevelLoadout.Slot[] loadoutSlots;
             public string idle;
             public float duration = 12;
@@ -66,7 +69,8 @@ namespace BeatTheBoss.Poses
 
         internal static Document Capture(BossController boss)
         {
-            var doc = new Document { idle = boss.idle?.savedName, duration = boss.loopDuration, loop = boss.loop, dummyAngle = boss.dummyStartAngle };
+            var doc = new Document { idle = boss.idle?.savedName, duration = boss.loopDuration, loop = boss.loop, dummyAngle = boss.dummyStartAngle,
+                songId=boss.songId,bossModelId=boss.bossModelId,songDelay=boss.songDelay };
             foreach (BossController.Cue cue in boss.timeline)
                 doc.events.Add(new Entry { action = cue.action, time = cue.time, angle = cue.angle, speed = cue.speed, animation = cue.recording?.savedName, transitionTiming = cue.transitionTiming, transitionSeconds = cue.transitionSeconds });
             return doc;
@@ -74,6 +78,8 @@ namespace BeatTheBoss.Poses
         internal static void Apply(Document doc, BossController boss)
         {
             Validate(doc);
+            boss.songId=doc.songId; boss.songDelay=doc.songDelay;
+            boss.SetCharacter(string.IsNullOrEmpty(doc.bossModelId)?DownloadedAssetLibrary.DefaultCharacter:doc.bossModelId);
             boss.idle = new BossController.Recording { savedName = doc.idle };
             boss.loopDuration = doc.duration; boss.loop = doc.loop; boss.dummyStartAngle = doc.dummyAngle;
             boss.timeline.Clear();
@@ -107,7 +113,10 @@ namespace BeatTheBoss.Poses
         private static void Validate(Document doc)
         {
             if (doc == null || doc.version != 1 || doc.events == null || doc.events.Count > 500 ||
-                !float.IsFinite(doc.duration) || doc.duration < .1f || doc.duration > 120 || !float.IsFinite(doc.dummyAngle))
+                !float.IsFinite(doc.duration) || doc.duration < .1f || doc.duration > 120 || !float.IsFinite(doc.dummyAngle) ||
+                !float.IsFinite(doc.songDelay) || doc.songDelay<0 || doc.songDelay>3600 ||
+                (!string.IsNullOrEmpty(doc.songId) && !DownloadedAssetLibrary.ValidId(doc.songId)) ||
+                (!string.IsNullOrEmpty(doc.bossModelId) && !DownloadedAssetLibrary.ValidId(doc.bossModelId)))
                 throw new InvalidDataException("Invalid timeline: use a duration up to 120 seconds and at most 500 events.");
             foreach (Entry e in doc.events)
                 if (e == null || (uint)e.action > (uint)BossController.ActionKind.FireLaser || !float.IsFinite(e.time) || e.time < 0 || e.time > 120 ||

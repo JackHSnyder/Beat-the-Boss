@@ -54,6 +54,13 @@ namespace BeatTheBoss.Poses
         [Serializable] public sealed class BundledAnimation { public string name; public TextAsset json; }
         public BundledAnimation[] bundledAnimations = Array.Empty<BundledAnimation>();
         public GameObject characterPrefab;
+        public string songId;
+        public string bossModelId = DownloadedAssetLibrary.DefaultCharacter;
+        [Min(0)] public float songDelay;
+        public double ElapsedTime => cycle*(double)TimelineDuration+clock;
+        private Transform originalVisual;
+        private GameObject selectedVisual;
+        private string appliedModelId=DownloadedAssetLibrary.DefaultCharacter;
         public MoveCircle arena;
         public Transform player;
         public Recording idle = new() { savedName = "Boss Idle" };
@@ -140,10 +147,17 @@ namespace BeatTheBoss.Poses
                 holder.SetActive(true);
             }
             rig.Initialize();
+            originalVisual=rig.rigRoot;
+            gameObject.AddComponent<BossSongPlayback>();
             initialRotation = transform.rotation;
             targetYaw = transform.eulerAngles.y;
             if (arena == null) foreach (MoveCircle c in FindObjectsByType<MoveCircle>()) if (c.gameObject.scene == gameObject.scene) { arena = c; break; }
             if (player == null) foreach (OVRCameraRig c in FindObjectsByType<OVRCameraRig>()) if (c.gameObject.scene == gameObject.scene) { player = c.centerEyeAnchor; break; }
+            BindFeet();
+            SetCharacter(bossModelId);
+        }
+        private void BindFeet()
+        {
             for (int i = 0; i < 2; i++)
             {
                 string side = i == 0 ? "Left" : "Right"; Foot f = feet[i];
@@ -152,6 +166,45 @@ namespace BeatTheBoss.Poses
                 f.home = transform.InverseTransformPoint(f.joint.position); f.planted = f.joint.position;
                 f.rotation = f.joint.rotation; f.localRotation = Quaternion.Inverse(transform.rotation) * f.rotation; f.yaw = targetYaw;
             }
+        }
+        internal void SetCharacter(string id)
+        {
+            bossModelId=string.IsNullOrEmpty(id)?DownloadedAssetLibrary.DefaultCharacter:id;
+            if (rig==null || appliedModelId==bossModelId) return;
+            GameObject prefab;
+            try { prefab=DownloadedAssetLibrary.ResolveCharacter(bossModelId); }
+            catch (Exception e) when (AnimationStore.IsFileError(e))
+            {
+                Debug.LogWarning("Using StylizedCharacter: "+e.Message,this);
+                // Keep the requested ID in the level so reinstalling the missing package repairs it.
+                if (appliedModelId!=DownloadedAssetLibrary.DefaultCharacter) ApplyVisual(null);
+                return;
+            }
+            ApplyVisual(bossModelId==DownloadedAssetLibrary.DefaultCharacter?null:prefab);
+        }
+        private void ApplyVisual(GameObject prefab)
+        {
+            rig.BeginPose();
+            if (selectedVisual!=null) { selectedVisual.SetActive(false); Destroy(selectedVisual); }
+            Transform root=originalVisual;
+            if (prefab!=null)
+            {
+                selectedVisual=new GameObject("Selected boss character"); selectedVisual.SetActive(false);
+                selectedVisual.transform.SetParent(transform,false);
+                GameObject visual=Instantiate(prefab,selectedVisual.transform,false);
+                visual.transform.SetLocalPositionAndRotation(originalVisual.localPosition,originalVisual.localRotation);
+                visual.transform.localScale=originalVisual.localScale;
+                foreach (MonoBehaviour behaviour in visual.GetComponentsInChildren<MonoBehaviour>(true)) behaviour.enabled=false;
+                foreach (Animator animator in visual.GetComponentsInChildren<Animator>(true)) animator.enabled=false;
+                foreach (Collider collider in visual.GetComponentsInChildren<Collider>(true)) collider.enabled=false;
+                var originalRenderer=originalVisual.GetComponentInChildren<Renderer>(true);
+                if(originalRenderer!=null)foreach(Renderer renderer in visual.GetComponentsInChildren<Renderer>(true))
+                    renderer.gameObject.layer=originalRenderer.gameObject.layer;
+                root=visual.transform; selectedVisual.SetActive(true);
+            }
+            originalVisual.gameObject.SetActive(prefab==null);
+            appliedModelId=prefab==null?DownloadedAssetLibrary.DefaultCharacter:bossModelId;
+            rig.Rebind(root); BindFeet();
         }
         private void Start()
         {

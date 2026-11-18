@@ -116,6 +116,17 @@ namespace BeatTheBoss.Poses
             boss.timeline.Add(Selected); Edited();
         }
         public void SetIdle(string name) { BeforeEdit(); boss.idle.savedName = name; boss.idle.bundledJson = null; Edited(); }
+        public void SetSong(string id) { BeforeEdit(); boss.songId=id; Edited(); }
+        public void SetSongDelay(float seconds) { BeforeEdit(); boss.songDelay=Mathf.Clamp(seconds,0,3600); Edited(); }
+        public void SetBossModel(string id)
+        {
+            try
+            {
+                DownloadedAssetLibrary.ResolveCharacter(id);
+                BeforeEdit(); boss.SetCharacter(id); Edited();
+            }
+            catch (Exception e) when (AnimationStore.IsFileError(e)) { Status=e.Message; Changed?.Invoke(); }
+        }
         public void SetDuration(float value) { BeforeEdit(); boss.loopDuration = Mathf.Clamp(value, 1, 120); Edited(); }
         public void ToggleLoop() { BeforeEdit(); boss.loop = !boss.loop; Edited(); }
         public void SetDummyStart(float angle) { BeforeEdit(); boss.dummyStartAngle = Mathf.Repeat(angle, 360); Edited(); }
@@ -178,6 +189,7 @@ namespace BeatTheBoss.Poses
             saveName = "New Level " + i; sourceName=savedState=null; levelId=Guid.NewGuid().ToString("N");
             loadoutSlots=LevelLoadout.CopySlots(EncounterLevelSession.Template?.Slots);
             boss.timeline.Clear(); boss.idle=new BossController.Recording(); boss.loop=true; boss.loopDuration=12; boss.dummyStartAngle=270;
+            boss.songId=null; boss.songDelay=0; boss.SetCharacter(DownloadedAssetLibrary.DefaultCharacter);
             EncounterLevelSession.New(EncounterLevelSession.Template);
             Selected = null; Cursor = 0; Status="New unsaved level"; Edited();
         }
