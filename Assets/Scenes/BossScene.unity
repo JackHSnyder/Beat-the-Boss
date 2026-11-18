@@ -1568,6 +1568,7 @@ GameObject:
   - component: {fileID: 1900000001}
   - component: {fileID: 1900000002}
   - component: {fileID: 1900000003}
+  - component: {fileID: 1900000004}
   m_Layer: 0
   m_Name: Boss
   m_TagString: Untagged
@@ -1724,6 +1725,11 @@ MonoBehaviour:
   - name: PEW PECK
     json: {fileID: 4900000, guid: 6cb2335ae77e4abb9e0673aa8983a37a, type: 3}
   characterPrefab: {fileID: 0}
+  songId: 
+  bossModelId: character-stylized
+  pointsPerHit: 100
+  targetPoints: 1000
+  songDelay: 0
   arena: {fileID: 800304876}
   player: {fileID: 862316900}
   idle:
@@ -1733,6 +1739,8 @@ MonoBehaviour:
   - time: 0
     action: 1
     angle: 0
+    transitionTiming: 0
+    transitionSeconds: 0
     recording:
       savedName: 
       bundledJson: {fileID: 0}
@@ -1743,6 +1751,8 @@ MonoBehaviour:
   - time: 3
     action: 3
     angle: 0
+    transitionTiming: 0
+    transitionSeconds: 0
     recording:
       savedName: PEW PECK
       bundledJson: {fileID: 0}
@@ -1753,6 +1763,8 @@ MonoBehaviour:
   - time: 6
     action: 0
     angle: 90
+    transitionTiming: 0
+    transitionSeconds: 0
     recording:
       savedName: 
       bundledJson: {fileID: 0}
@@ -1763,6 +1775,8 @@ MonoBehaviour:
   - time: 8
     action: 3
     angle: 0
+    transitionTiming: 0
+    transitionSeconds: 0
     recording:
       savedName: PEW PECK
       bundledJson: {fileID: 0}
@@ -1773,6 +1787,8 @@ MonoBehaviour:
   - time: 10
     action: 1
     angle: 0
+    transitionTiming: 0
+    transitionSeconds: 0
     recording:
       savedName: 
       bundledJson: {fileID: 0}
@@ -1800,6 +1816,26 @@ MonoBehaviour:
   stepDuration: 0.28
   stepHeight: 0.055
   stepAngle: 15
+--- !u!114 &1900000004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1900000000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 846ba50624616034cbce238507971355, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BeatTheBoss.Poses.BossScore
+  chestTargetRadius: 0.3
+  chestOffset: {x: 0, y: 0, z: 0.04}
+  meterHeightAboveHead: 0.32
+  popupSeconds: 1.4
+  popupRise: 0.65
+  onTargetReached:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

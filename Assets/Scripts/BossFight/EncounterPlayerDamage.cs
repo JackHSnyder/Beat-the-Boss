@@ -24,6 +24,7 @@ namespace BeatTheBoss.Poses
         private Material vignetteMaterial;
         private double recoverAt;
         private bool returningToMenu;
+        private bool encounterFinished;
         public float Health { get; private set; }
 
         private void Awake()
@@ -37,6 +38,7 @@ namespace BeatTheBoss.Poses
 
         private void Update()
         {
+            if (encounterFinished) return;
             if (Health <= 0f)
             {
                 ReturnToMenuIfReady();
@@ -68,7 +70,7 @@ namespace BeatTheBoss.Poses
 
         public void TakeDamage(float amount)
         {
-            if (!isActiveAndEnabled || !float.IsFinite(amount) || amount <= 0f || Health <= 0f)
+            if (encounterFinished || !isActiveAndEnabled || !float.IsFinite(amount) || amount <= 0f || Health <= 0f)
                 return;
             float applied = Mathf.Min(amount, Health);
             Health -= applied;
@@ -81,12 +83,16 @@ namespace BeatTheBoss.Poses
 
         private void ReturnToMenuIfReady()
         {
+            foreach (var completion in FindObjectsByType<EncounterCompletion>())
+                if (completion.gameObject.scene == gameObject.scene && completion.isActiveAndEnabled)
+                { completion.Died(); returningToMenu = true; return; }
             // A lethal hit can land while the incoming scene fade is still running.
             if (returningToMenu || SceneHandler.IsTransitioning)
                 return;
             returningToMenu = true;
             SceneHandler.TransitionTo(SceneDestination.MainMenu);
         }
+        internal void StopEncounterDamage() { encounterFinished=true; hitbox.enabled=false; }
 
         private void UpdateVignette()
         {

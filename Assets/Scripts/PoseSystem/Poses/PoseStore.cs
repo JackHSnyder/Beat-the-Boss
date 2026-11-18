@@ -132,15 +132,16 @@ namespace BeatTheBoss.Poses
 
         private string PathFor(string name) => NamedPath(directory, Prefix, name, "pose");
 
-        internal static string NamedPath(string directory, string prefix, string name, string kind)
+        internal static string NamedPath(string directory, string prefix, string name, string kind, bool allowParentheses = false)
         {
             if (string.IsNullOrWhiteSpace(name) || name.Length > 64)
                 throw new ArgumentException($"Use a {kind} name between 1 and 64 characters.");
 
             foreach (char character in name)
             {
-                if (!char.IsLetterOrDigit(character) && character != ' ' && character != '-' && character != '_')
-                    throw new ArgumentException($"Use letters, numbers, spaces, hyphens, or underscores in the {kind} name.");
+                if (!char.IsLetterOrDigit(character) && character != ' ' && character != '-' && character != '_' &&
+                    !(allowParentheses && (character == '(' || character == ')')))
+                    throw new ArgumentException($"Use letters, numbers, spaces, hyphens, underscores{(allowParentheses ? ", or parentheses" : "")} in the {kind} name.");
             }
             return Path.Combine(directory, prefix + name.Trim() + ".json");
         }

@@ -19,9 +19,11 @@ namespace BeatTheBoss.Poses
         public event Action Changed;
         private readonly Stack<string> undo = new(), redo = new();
         private string savedState;
-        private string sourceName, levelId;
+        private string sourceName, bundledSourceName, levelId;
         private LevelLoadout.Slot[] loadoutSlots;
-        public bool IsNew => sourceName==null;
+        public bool IsNew => sourceName==null && bundledSourceName==null;
+        public bool HasGameplayChanges => !IsNew && savedState!=null &&
+            GameplayState(Capture()) != GameplayState(JsonUtility.FromJson<BossTimelineStore.Document>(savedState));
         // OnEnable also runs after a script reload, when the nonserialized preview flag resets.
         private void OnEnable() { if (boss != null) { boss.previewMode = true; boss.playOnStart = false; } }
         private void Start()
@@ -38,7 +40,12 @@ namespace BeatTheBoss.Poses
             levelId=EncounterLevelSession.Mode==EncounterLevelSession.Selection.Bundled && EncounterLevelSession.Template!=null
                 ? EncounterLevelSession.Template.Id : Guid.NewGuid().ToString("N");
             loadoutSlots=LevelLoadout.CopySlots(EncounterLevelSession.Template?.Slots);
-            boss.RebuildTimeline(); savedState=null; Dirty=true; Changed?.Invoke();
+            boss.loop=boss.endBasis!=LevelEndBasis.Timeline;
+            boss.RebuildTimeline();
+            bundledSourceName=EncounterLevelSession.Mode==EncounterLevelSession.Selection.Bundled?EncounterLevelSession.BundledTitle:null;
+            if (bundledSourceName!=null) BossTimelineStore.RegisterBundledLevel(bundledSourceName,levelId);
+            savedState=bundledSourceName!=null?Serialize():null;
+            Dirty=IsNew; Changed?.Invoke();
         }
         private void Update()
         {
@@ -53,6 +60,13 @@ namespace BeatTheBoss.Poses
             return doc;
         }
         private string Serialize() => JsonUtility.ToJson(Capture());
+        private static string GameplayState(BossTimelineStore.Document doc)
+        {
+            // Names, identity and dummy-player controls do not change the actual encounter.
+            doc.name=doc.levelId=null; doc.dummyAngle=0; doc.loop=false;
+            doc.events.RemoveAll(e=>e.action==BossController.ActionKind.DummyAngle);
+            return JsonUtility.ToJson(doc);
+        }
         private void BeforeEdit() { Playing = false; undo.Push(Serialize()); redo.Clear(); }
         private void Edited()
         {
@@ -116,8 +130,22 @@ namespace BeatTheBoss.Poses
             boss.timeline.Add(Selected); Edited();
         }
         public void SetIdle(string name) { BeforeEdit(); boss.idle.savedName = name; boss.idle.bundledJson = null; Edited(); }
-        public void SetSong(string id) { BeforeEdit(); boss.songId=id; Edited(); }
+        public void SetSong(string id)
+        {
+            BeforeEdit(); boss.songId=id;
+            if(string.IsNullOrWhiteSpace(id) && boss.endBasis==LevelEndBasis.Song)
+            { boss.endBasis=LevelEndBasis.Timeline; boss.loop=false; }
+            Edited();
+        }
         public void SetSongDelay(float seconds) { BeforeEdit(); boss.songDelay=Mathf.Clamp(seconds,0,3600); Edited(); }
+        public void SetPointsPerHit(int points) { BeforeEdit(); boss.pointsPerHit=Mathf.Clamp(points,1,1000000); Edited(); }
+        public void SetTargetPoints(int points) { BeforeEdit(); boss.targetPoints=Mathf.Clamp(points,1,1000000000); Edited(); }
+        public void SetEndBasis(LevelEndBasis basis)
+        {
+            if(basis==LevelEndBasis.Song && string.IsNullOrWhiteSpace(boss.songId))
+            { Status="Choose a song before using song length."; Changed?.Invoke(); return; }
+            BeforeEdit(); boss.endBasis=basis; boss.loop=basis!=LevelEndBasis.Timeline; Edited();
+        }
         public void SetBossModel(string id)
         {
             try
@@ -136,21 +164,35 @@ namespace BeatTheBoss.Poses
             try
             {
                 value=(value??"").Trim(); BossTimelineStore.ValidateName(value);
-                if (!string.Equals(value,sourceName,StringComparison.OrdinalIgnoreCase) &&
-                    BossTimelineStore.List().Any(n=>string.Equals(n,value,StringComparison.OrdinalIgnoreCase)))
-                    throw new System.IO.IOException("A timeline already uses that name. Choose another name.");
                 if (value!=saveName) { BeforeEdit(); saveName=value; Edited(); }
                 return true;
             }
             catch (Exception e) when (AnimationStore.IsFileError(e)) { Status=e.Message; Changed?.Invoke(); return false; }
         }
         public void Save() => TrySave();
-        public bool TrySave()
+        public bool TrySave() => CommitSave(false,false);
+        public bool TrySaveOverwrite() => CommitSave(false,true);
+        public bool TrySaveAsNew() => CommitSave(true,true);
+        private bool CommitSave(bool asNew,bool choiceMade)
         {
             try
             {
-                BossTimelineStore.SaveDraft(saveName, Capture(), sourceName);
-                sourceName=saveName;
+                bool gameplayChanged=HasGameplayChanges;
+                if (gameplayChanged && !choiceMade)
+                {
+                    Status="Choose Overwrite or Save as new for gameplay changes.";
+                    Changed?.Invoke(); return false;
+                }
+                var doc=Capture();
+                string destination=BossTimelineStore.AvailableName(saveName,asNew?null:sourceName??bundledSourceName);
+                doc.name=destination;
+                if (asNew) doc.levelId=Guid.NewGuid().ToString("N");
+                BossTimelineStore.SaveDraft(destination,doc,asNew?null:sourceName);
+                if (!asNew && gameplayChanged) LevelProgress.Clear(levelId);
+                saveName=sourceName=destination; levelId=doc.levelId;
+                bundledSourceName=null;
+                // Undo history from the original must not restore its ID into a newly saved copy.
+                if (asNew) { undo.Clear(); redo.Clear(); }
                 EncounterLevelSession.Saved(saveName,EncounterLevelSession.Template);
                 bool linkedToEncounter = !string.IsNullOrWhiteSpace(boss.timelineName);
                 if (linkedToEncounter)
@@ -168,6 +210,7 @@ namespace BeatTheBoss.Poses
         {
             BossTimelineStore.Apply(doc,boss);
             saveName=sourceName=BossTimelineStore.ResolveName(name); levelId=doc.levelId;
+            bundledSourceName=null;
             loadoutSlots=LevelLoadout.CopySlots(doc.loadoutSlots ?? (IEnumerable<LevelLoadout.Slot>)EncounterLevelSession.Template?.Slots);
             undo.Clear(); redo.Clear(); Selected=null; Cursor=0; Playing=false;
             boss.RebuildTimeline(); savedState=Serialize(); Dirty=false;
@@ -186,10 +229,11 @@ namespace BeatTheBoss.Poses
         public void New()
         {
             undo.Clear(); redo.Clear(); int i = 1; while (BossTimelineStore.Exists("New Level " + i)) i++;
-            saveName = "New Level " + i; sourceName=savedState=null; levelId=Guid.NewGuid().ToString("N");
+            saveName = "New Level " + i; sourceName=bundledSourceName=savedState=null; levelId=Guid.NewGuid().ToString("N");
             loadoutSlots=LevelLoadout.CopySlots(EncounterLevelSession.Template?.Slots);
             boss.timeline.Clear(); boss.idle=new BossController.Recording(); boss.loop=true; boss.loopDuration=12; boss.dummyStartAngle=270;
             boss.songId=null; boss.songDelay=0; boss.SetCharacter(DownloadedAssetLibrary.DefaultCharacter);
+            boss.pointsPerHit=100; boss.targetPoints=1000; boss.endBasis=LevelEndBasis.Timeline; boss.loop=false;
             EncounterLevelSession.New(EncounterLevelSession.Template);
             Selected = null; Cursor = 0; Status="New unsaved level"; Edited();
         }

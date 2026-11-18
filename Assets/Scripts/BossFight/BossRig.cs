@@ -24,6 +24,19 @@ namespace BeatTheBoss.Poses
         private readonly Dictionary<Transform, Pose> previous = new();
         private bool initialized;
 
+        internal static void DisableLiveDrivers(GameObject visual)
+        {
+            foreach (MonoBehaviour behaviour in visual.GetComponentsInChildren<MonoBehaviour>(true)) behaviour.enabled = false;
+            foreach (Animator animator in visual.GetComponentsInChildren<Animator>(true)) animator.enabled = false;
+            foreach (Collider collider in visual.GetComponentsInChildren<Collider>(true)) collider.enabled = false;
+            // Disabled behaviours still receive Awake when their object first activates.
+            // Tony's standalone face retargeter expects a live tracking provider, which
+            // boss/preview instances deliberately do not have. Keep that nonvisual object inactive.
+            foreach (var face in visual.GetComponentsInChildren<Meta.XR.Movement.FaceTracking.Samples.FaceRetargeterComponent>(true))
+                if (face.transform != visual.transform && face.GetComponentInChildren<Renderer>(true) == null)
+                    face.gameObject.SetActive(false);
+        }
+
         internal void Rebind(Transform root)
         {
             rigRoot=root; initialized=false; previous.Clear();

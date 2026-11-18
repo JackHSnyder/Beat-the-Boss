@@ -115,7 +115,7 @@ public sealed class AttackLaser : MonoBehaviour
         bolt.Finished = hitSurface;
 
         if (hitSurface)
-            hit.collider.GetComponentInParent<FiringTarget>()?.ReceiveLaserHit();
+            hit.collider.GetComponentInParent<FiringTarget>()?.ReceiveLaserHit(hit.point);
     }
 
     private bool TryHitSurface(Ray step, float distance, Transform owner, out RaycastHit hit)

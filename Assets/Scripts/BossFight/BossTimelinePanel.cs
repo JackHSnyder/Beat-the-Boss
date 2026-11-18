@@ -458,11 +458,38 @@ namespace BeatTheBoss.Poses
                 Picker(animations,ChooseAnimation);
                 Button(properties,"Clear animation",0,584,372,42,() => ChooseAnimation(null)); return;
             }
+            if (view=="score")
+            {
+                detailTitle.text = "Score settings";
+                Button(properties,"Back",0,0,372,42,() => OpenDetails("encounter"));
+                Number("Points per hit",workbench.boss.pointsPerHit.ToString("N0"),84,
+                    () => workbench.SetPointsPerHit(workbench.boss.pointsPerHit-25),() => workbench.SetPointsPerHit(workbench.boss.pointsPerHit+25));
+                Number("Target score",workbench.boss.targetPoints.ToString("N0"),192,
+                    () => workbench.SetTargetPoints(workbench.boss.targetPoints-100),() => workbench.SetTargetPoints(workbench.boss.targetPoints+100));
+                Label(properties,"Awarded when a player laser hits the boss's chest target. Score is kept across timeline loops.",0,316,372,140,20);
+                return;
+            }
+            if (view=="endrule")
+            {
+                detailTitle.text="Level completion";
+                Button(properties,"Back",0,0,372,42,() => OpenDetails("encounter"));
+                void Choose(LevelEndBasis basis) { workbench.SetEndBasis(basis); OpenDetails("encounter"); }
+                Button(properties,"Boss timeline",0,84,372,48,() => Choose(LevelEndBasis.Timeline));
+                var songChoice=Button(properties,"Song length",0,150,372,48,() => Choose(LevelEndBasis.Song));
+                songChoice.GetComponentInParent<UnityEngine.UI.Button>().interactable=!string.IsNullOrWhiteSpace(workbench.boss.songId);
+                Button(properties,"Point target",0,216,372,48,() => Choose(LevelEndBasis.Points));
+                Label(properties,"Boss timeline: the song loops.\n\nSong length: the timeline loops.\n\nPoint target: both loop until the target is reached.",0,312,372,220,20);
+                if(string.IsNullOrWhiteSpace(workbench.boss.songId))
+                    Label(properties,"Choose a song in Encounter settings to use song length.",0,550,372,80,18);
+                return;
+            }
             if (view=="encounter")
             {
                 detailTitle.text = "Encounter settings";
                 Number("Minimum length",$"{workbench.boss.loopDuration:0.##} seconds",0,() => workbench.SetDuration(workbench.boss.loopDuration-1),() => workbench.SetDuration(workbench.boss.loopDuration+1));
-                Button(properties,workbench.boss.loop ? "Loop: on" : "Loop: off",0,100,372,42,workbench.ToggleLoop);
+                string endName=workbench.boss.endBasis==LevelEndBasis.Timeline?"Boss timeline":workbench.boss.endBasis==LevelEndBasis.Song?"Song length":"Point target";
+                Button(properties,"End based on: "+endName,0,100,372,42,
+                    () => OpenDetails("endrule"));
                 Label(properties,"Starting idle",0,164,372,30,17);
                 Button(properties,string.IsNullOrEmpty(workbench.boss.idle.savedName) ? "Choose animation" : workbench.boss.idle.savedName,0,200,372,44,() => PickAnimation(true));
                 Number("Dummy start angle",$"{workbench.boss.dummyStartAngle:0}°",278,() => workbench.SetDummyStart(workbench.boss.dummyStartAngle-15),() => workbench.SetDummyStart(workbench.boss.dummyStartAngle+15));
@@ -470,7 +497,8 @@ namespace BeatTheBoss.Poses
                 Number("Song delay",$"{workbench.boss.songDelay:0.##} seconds",430,
                     () => workbench.SetSongDelay(workbench.boss.songDelay-.5f),() => workbench.SetSongDelay(workbench.boss.songDelay+.5f));
                 Button(properties,"Boss: "+DownloadedAssetLibrary.Title(workbench.boss.bossModelId,true),0,526,372,42,() => OpenDetails("characters"));
-                Button(properties,"Name / Rename timeline",0,584,372,42,EditName); return;
+                Button(properties,"Score settings",0,584,178,42,() => OpenDetails("score"));
+                Button(properties,"Name / Rename",194,584,178,42,EditName); return;
             }
             var cue = workbench.Selected;
             if (cue==null)
@@ -585,7 +613,16 @@ namespace BeatTheBoss.Poses
         }
         private void RequestSave()
         {
+            if (confirmation.IsOpen) return;
             if (view=="name" && !ApplyName()) return;
+            if (workbench.HasGameplayChanges)
+            {
+                if (workbench.Playing) workbench.TogglePlay();
+                confirmation.ShowChoice("Save edited level",
+                    "Overwrite clears this level's completion mark. Save as new keeps the original level and its completion mark.",
+                    "Overwrite",() => workbench.TrySaveOverwrite(),"Save as new",() => workbench.TrySaveAsNew());
+                return;
+            }
             workbench.Save();
         }
         private void UpdateNameDisplay()
@@ -620,7 +657,7 @@ namespace BeatTheBoss.Poses
             Button(properties,"Clear",0,438,100,44,() => { nameBuffer=""; UpdateNameDisplay(); });
             Button(properties,"Cancel",110,438,100,44,() => OpenDetails("encounter"));
             Button(properties,"Done",220,438,152,44,() => ApplyName(),true);
-            Label(properties,"This name also appears in the level list. Use Save to create the level or save a rename.",0,516,372,110,18);
+            Label(properties,"This name also appears in the level list. Duplicate names get a numbered suffix when saved.",0,516,372,110,18);
         }
     }
 }

@@ -56,6 +56,11 @@ namespace BeatTheBoss.Poses
         public GameObject characterPrefab;
         public string songId;
         public string bossModelId = DownloadedAssetLibrary.DefaultCharacter;
+        [Header("Score")]
+        [Min(1)] public int pointsPerHit = 100;
+        [Min(1)] public int targetPoints = 1000;
+        public LevelEndBasis endBasis = LevelEndBasis.Timeline;
+        internal BossTimelineStore.Document LoadedLevel { get; private set; }
         [Min(0)] public float songDelay;
         public double ElapsedTime => cycle*(double)TimelineDuration+clock;
         private Transform originalVisual;
@@ -99,7 +104,7 @@ namespace BeatTheBoss.Poses
         private float turnFrom, turnTo, turnClock, turnDuration;
         private double accumulator;
         private const float Tick = 1f / 60f;
-        public bool loop = true;
+        [HideInInspector] public bool loop = true;
         [Min(.1f)] public float loopDuration = 12;
         [Min(.01f)] public float turnSmoothTime = .25f;
         [Min(1)] public float turnSpeed = 120;
@@ -141,8 +146,7 @@ namespace BeatTheBoss.Poses
                 holder.transform.SetParent(transform, false); holder.SetActive(false);
                 GameObject visual = Instantiate(characterPrefab, holder.transform);
                 visual.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
-                foreach (MonoBehaviour behaviour in visual.GetComponentsInChildren<MonoBehaviour>(true)) behaviour.enabled = false;
-                foreach (Animator animator in visual.GetComponentsInChildren<Animator>(true)) animator.enabled = false;
+                BossRig.DisableLiveDrivers(visual);
                 rig.rigRoot = visual.transform;
                 holder.SetActive(true);
             }
@@ -155,6 +159,8 @@ namespace BeatTheBoss.Poses
             if (player == null) foreach (OVRCameraRig c in FindObjectsByType<OVRCameraRig>()) if (c.gameObject.scene == gameObject.scene) { player = c.centerEyeAnchor; break; }
             BindFeet();
             SetCharacter(bossModelId);
+            if (GetComponent<BossScore>() == null) gameObject.AddComponent<BossScore>();
+            if (GetComponent<EncounterCompletion>() == null) gameObject.AddComponent<EncounterCompletion>();
         }
         private void BindFeet()
         {
@@ -194,9 +200,7 @@ namespace BeatTheBoss.Poses
                 GameObject visual=Instantiate(prefab,selectedVisual.transform,false);
                 visual.transform.SetLocalPositionAndRotation(originalVisual.localPosition,originalVisual.localRotation);
                 visual.transform.localScale=originalVisual.localScale;
-                foreach (MonoBehaviour behaviour in visual.GetComponentsInChildren<MonoBehaviour>(true)) behaviour.enabled=false;
-                foreach (Animator animator in visual.GetComponentsInChildren<Animator>(true)) animator.enabled=false;
-                foreach (Collider collider in visual.GetComponentsInChildren<Collider>(true)) collider.enabled=false;
+                BossRig.DisableLiveDrivers(visual);
                 var originalRenderer=originalVisual.GetComponentInChildren<Renderer>(true);
                 if(originalRenderer!=null)foreach(Renderer renderer in visual.GetComponentsInChildren<Renderer>(true))
                     renderer.gameObject.layer=originalRenderer.gameObject.layer;
@@ -212,17 +216,25 @@ namespace BeatTheBoss.Poses
             try
             {
                 var doc = BossTimelineStore.LoadForEncounter(timelineName, out _);
+                LoadedLevel = doc;
                 if (doc != null)
                     BossTimelineStore.Apply(doc, this);
             }
             catch (Exception e) when (AnimationStore.IsFileError(e)) { Debug.LogWarning(e.Message, this); }
+            loop = endBasis != LevelEndBasis.Timeline;
             RebuildTimeline();
-            if (playOnStart) { playing = true; FireInitialEvents(); }
+            if (playOnStart) StartCoroutine(PlayWhenSceneReady());
+        }
+        private System.Collections.IEnumerator PlayWhenSceneReady()
+        {
+            while (SceneHandler.IsTransitioning) yield return null;
+            playing = true; FireInitialEvents();
         }
         [ContextMenu("Play / restart timeline")]
         public void Play()
         {
             if (!Application.isPlaying) return;
+            loop = endBasis != LevelEndBasis.Timeline;
             RebuildTimeline(); playing = true; FireInitialEvents();
         }
         private void FireInitialEvents()
@@ -275,10 +287,8 @@ namespace BeatTheBoss.Poses
             foreach (Cue cue in ordered)
             {
                 if (cue.action is ActionKind.PlayAnimation or ActionKind.SetIdle) clips[cue] = cue.recording?.Load(this);
-                float duration = cue.action == ActionKind.SpikeRow && spikeRowPrefab != null
-                    ? spikeRowPrefab.Duration : cue.action == ActionKind.FireLaser && laserPrefab != null ? laserPrefab.Duration : ClipDuration(cue);
-                // Running attacks have their own lifetime and may cross a loop boundary.
-                if (loop && IsAttack(cue.action)) duration = 0;
+                clips.TryGetValue(cue,out MoveAnimation clip);
+                float duration = EventDuration(cue.action,clip,cue.speed,loop,spikeRowPrefab,laserPrefab);
                 TimelineDuration = Mathf.Max(TimelineDuration, cue.time + duration);
             }
             initialIdle = idle?.Load(this);
@@ -286,6 +296,14 @@ namespace BeatTheBoss.Poses
         }
         public float ClipDuration(Cue cue) => cue.action == ActionKind.PlayAnimation && clips.TryGetValue(cue, out MoveAnimation clip) && clip != null
             ? (clip.PlaybackEnd - clip.PlaybackStart) / Mathf.Max(.01f, cue.speed) : 0;
+        internal static float EventDuration(ActionKind action,MoveAnimation clip,float speed,bool repeating,BossSpikeRow spikes,BossLaserAttack laser)
+        {
+            // Shared with level details so the displayed length equals the encounter's actual ending time.
+            if (repeating && IsAttack(action)) return 0;
+            if (action==ActionKind.SpikeRow && spikes!=null) return spikes.Duration;
+            if (action==ActionKind.FireLaser && laser!=null) return laser.Duration;
+            return action==ActionKind.PlayAnimation && clip!=null ? (clip.PlaybackEnd-clip.PlaybackStart)/Mathf.Max(.01f,speed) : 0;
+        }
         public bool HasClip(Cue cue) => clips.TryGetValue(cue, out MoveAnimation clip) && clip != null;
         private void ResetSimulation()
         {
@@ -347,7 +365,12 @@ namespace BeatTheBoss.Poses
                 }
             }
         }
-        public void StopTimeline() => playing = false;
+        public void StopTimeline()
+        {
+            playing = false;
+            // A death during the incoming fade must also cancel the deferred first play.
+            StopAllCoroutines();
+        }
         public void ResumeTimeline() => playing = true;
         private void PlaceDummy(float angle)
         {

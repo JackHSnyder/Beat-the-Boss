@@ -16,6 +16,7 @@ public sealed class LevelSelectPanel : MonoBehaviour
         public int encounters;
         public SceneDestination destination;
         public LevelLoadout loadout;
+        public BossTimelineStore.Document bundledDefinition = new();
         [NonSerialized] public BossTimelineStore.Document document;
     }
 
@@ -35,6 +36,11 @@ public sealed class LevelSelectPanel : MonoBehaviour
     [SerializeField] private Transform loadoutPanel;
     [SerializeField] private RectTransform loadoutBackplate;
     [SerializeField] private MoveLoadoutPanel loadoutSelection;
+    [SerializeField] private LevelBossPreview bossPreview;
+    [Header("Bundled level duration references")]
+    [SerializeField] private BossController.BundledAnimation[] bundledAnimations = Array.Empty<BossController.BundledAnimation>();
+    [SerializeField] private BossSpikeRow spikeRowPrefab;
+    [SerializeField] private BossLaserAttack laserPrefab;
 
     private Vector3 center;
     private Quaternion front;
@@ -48,8 +54,10 @@ public sealed class LevelSelectPanel : MonoBehaviour
     private UnityEngine.UI.ScrollRect scroll;
     private TMP_Text downloadStatus;
     private TMP_Text detailsTitle;
-    private TMP_Text difficulty;
-    private TMP_Text encounters;
+    private TMP_Text levelLength;
+    private TMP_Text pointTarget;
+    private RectTransform completionStatus;
+    private int selectionVersion;
     private LevelEntry selectedLevel;
     private readonly List<LevelEntry> loadedLevels=new();
     private readonly List<LevelLoadout> runtimeLoadouts=new();
@@ -77,18 +85,22 @@ public sealed class LevelSelectPanel : MonoBehaviour
         BuildAssets();
         BuildDetails();
         built=true;
+        menu.SectionChanging += CloseDetails;
         RefreshLevels();
         detailsPanel.gameObject.SetActive(false);
     }
     private void OnEnable() { if (built) RefreshLevels(); }
     private void OnDestroy()
     {
+        if (menu != null) menu.SectionChanging -= CloseDetails;
         foreach (var definition in runtimeLoadouts)
             if (definition!=null && definition!=MoveLoadout.ActiveLevel && definition!=EncounterLevelSession.Template) Destroy(definition);
     }
 
     private void OnDisable()
     {
+        selectionVersion++;
+        if (bossPreview != null) bossPreview.Hide();
         selectedLevel = null;
         assetsOpen=false; assetsProgress=0;
         if (assetsPanel!=null) assetsPanel.gameObject.SetActive(false);
@@ -105,7 +117,7 @@ public sealed class LevelSelectPanel : MonoBehaviour
 
     private void Update()
     {
-        if (selectedLevel == null && !assetsOpen && assetsProgress==0) return;
+        if (selectedLevel == null && !assetsOpen && assetsProgress==0 && splitProgress==0 && loadoutProgress==0) return;
         bool reduced = SceneHandler.ReducedTransitions;
         float target=selectedLevel!=null?1:0;
         splitProgress = reduced ? target : Mathf.MoveTowards(splitProgress,target,Time.unscaledDeltaTime/.36f);
@@ -163,12 +175,22 @@ public sealed class LevelSelectPanel : MonoBehaviour
     }
     public void ShowAssets()
     {
+        selectionVersion++;
+        if (bossPreview != null) bossPreview.Hide();
         selectedLevel=null; loadoutOpen=false;
         detailsPanel.gameObject.SetActive(false); loadoutPanel.gameObject.SetActive(false);
         loadoutProgress=0; assetsOpen=true;
         assetsPanel.gameObject.SetActive(true); assetBrowser.Refresh();
     }
     public void HideAssets() { assetsOpen=false; }
+    public void CloseDetails()
+    {
+        selectionVersion++;
+        selectedLevel = null;
+        loadoutOpen = false;
+        if (detailsPanel != null) detailsPanel.gameObject.SetActive(false);
+        if (bossPreview != null) bossPreview.Hide();
+    }
     private void AlignInnerBottomCorner(Transform panel, RectTransform backplate, bool left, float weight)
     {
         Transform space=listPanel.parent;
@@ -260,6 +282,7 @@ public sealed class LevelSelectPanel : MonoBehaviour
     public void RefreshLevels()
     {
         if (scroll==null) return;
+        foreach(var bundled in levels) BossTimelineStore.RegisterBundledLevel(bundled.title,LevelId(bundled));
         string selectedId=selectedLevel?.document?.levelId ?? selectedLevel?.loadout?.Id;
         loadedLevels.Clear(); int failed=0;
         try
@@ -279,7 +302,8 @@ public sealed class LevelSelectPanel : MonoBehaviour
         { downloadStatus.text="Couldn't refresh levels: "+error.Message; return; }
         // A saved example replaces the bundled row of the same name.
         foreach (var level in levels)
-            if (!loadedLevels.Any(l=>string.Equals(l.title,level.title,StringComparison.OrdinalIgnoreCase))) loadedLevels.Add(level);
+            if (!loadedLevels.Any(l=>string.Equals(l.title,level.title,StringComparison.OrdinalIgnoreCase) ||
+                (level.loadout!=null && l.document?.levelId==level.loadout.Id))) loadedLevels.Add(level);
         loadedLevels.Sort((a,b)=>StringComparer.OrdinalIgnoreCase.Compare(a.title,b.title));
         foreach (Transform child in rows) { child.gameObject.SetActive(false); Destroy(child.gameObject); }
         rows.sizeDelta=new Vector2(0,loadedLevels.Count*RowHeight+24);
@@ -293,7 +317,14 @@ public sealed class LevelSelectPanel : MonoBehaviour
                 width - 24f, RowHeight - 20f, 34, () => SelectLevel(level));
             row.GetComponentInParent<UnityEngine.UI.Button>().gameObject.AddComponent<LevelListItemInput>().Initialize(scroll);
             row.alignment = TextAlignmentOptions.MidlineLeft;
-            row.margin = new Vector4(24f, 0f, 24f, 0f);
+            bool completed=LevelProgress.HasPassed(LevelId(level));
+            row.margin = new Vector4(24f, 0f, completed?96f:24f, 0f);
+            if (completed)
+            {
+                var check=LevelCompletionCheck.Create(row.transform.parent);
+                check.anchorMin=check.anchorMax=new Vector2(1,.5f);
+                check.anchoredPosition=new Vector2(-42,0);
+            }
         }
         var selected=loadedLevels.FirstOrDefault(l=>(l.document?.levelId??l.loadout?.Id)==selectedId);
         if (selectedLevel!=null)
@@ -311,9 +342,16 @@ public sealed class LevelSelectPanel : MonoBehaviour
         detailsTitle.enableAutoSizing=true;
         detailsTitle.fontSizeMin=26; detailsTitle.fontSizeMax=50;
         detailsTitle.textWrappingMode=TextWrappingModes.Normal;
-        difficulty = AddStat("Difficulty", 235f, width);
-        encounters = AddStat("Encounters", 370f, width);
-        AddStat("Best time", 505f, width).text = "—";
+        levelLength = AddStat("Level length", 235f, width);
+        pointTarget = AddStat("Point target", 370f, width);
+        completionStatus=CreateRect(detailsBackplate,"Completed status");
+        completionStatus.anchorMin=completionStatus.anchorMax=completionStatus.pivot=new Vector2(0,1);
+        completionStatus.anchoredPosition=new Vector2(Inset,-505);completionStatus.sizeDelta=new Vector2(width,56);
+        var check=LevelCompletionCheck.Create(completionStatus);
+        check.anchorMin=check.anchorMax=new Vector2(0,.5f);check.anchoredPosition=new Vector2(24,0);
+        var completed=PosePanelLayout.CreateLabel(completionStatus,"Completed",64,0,width-64,56,30,true);
+        completed.color=new Color(.4f,1,.6f);
+        completionStatus.gameObject.SetActive(false);
 
         float playTop = detailsBackplate.rect.height - Inset - 112f;
         loadoutButton = AddButton(detailsBackplate, "Choose Loadout", Inset, playTop - 208f,
@@ -338,6 +376,7 @@ public sealed class LevelSelectPanel : MonoBehaviour
 
     private void SelectLevel(LevelEntry level)
     {
+        int version=++selectionVersion;
         assetsOpen=false;
         if (level.document!=null && level.loadout==null)
         {
@@ -346,11 +385,48 @@ public sealed class LevelSelectPanel : MonoBehaviour
         }
         selectedLevel = level;
         detailsTitle.text = level.title;
-        difficulty.text = level.difficulty;
-        encounters.text = level.encounters.ToString();
+        var definition=Definition(level);
+        pointTarget.text=Mathf.Max(1,definition.targetPoints).ToString("N0");
+        completionStatus.gameObject.SetActive(LevelProgress.HasPassed(LevelId(level)));
         if (loadoutOpen) loadoutSelection.Configure(level.loadout);
         PositionPanels(splitProgress);
         detailsPanel.gameObject.SetActive(true);
+        if (definition.endBasis==LevelEndBasis.Points) levelLength.text="N/A";
+        else if (definition.endBasis==LevelEndBasis.Timeline) levelLength.text=FormatLength(TimelineLength(definition));
+        else
+        {
+            levelLength.text="Loading...";
+            StartCoroutine(DownloadedAssetLibrary.LoadSong(definition.songId,(clip,error)=>
+            {
+                if (version!=selectionVersion || selectedLevel!=level || !detailsPanel.gameObject.activeSelf) return;
+                levelLength.text=clip!=null ? FormatLength(definition.songDelay+clip.length) : "Unavailable";
+            }));
+        }
+        if (bossPreview != null)
+            bossPreview.Show(level.document?.levelId ?? level.title, level.document?.bossModelId, level.document?.idle);
+    }
+    private static BossTimelineStore.Document Definition(LevelEntry level) => level.document ?? level.bundledDefinition;
+    private static string LevelId(LevelEntry level) => level.document?.levelId ?? level.loadout?.Id ?? "bundled-"+level.title.ToUpperInvariant();
+    private float TimelineLength(BossTimelineStore.Document definition)
+    {
+        float duration=Mathf.Max(.1f,definition.duration);
+        foreach (var entry in definition.events)
+        {
+            if (entry.action==BossController.ActionKind.DummyAngle) continue;
+            MoveAnimation clip=null;
+            if (entry.action==BossController.ActionKind.PlayAnimation)
+            {
+                var bundled=bundledAnimations.FirstOrDefault(a=>a.name==entry.animation);
+                clip=new BossController.Recording {savedName=entry.animation,bundledJson=bundled?.json}.Load(this);
+            }
+            duration=Mathf.Max(duration,entry.time+BossController.EventDuration(entry.action,clip,entry.speed,false,spikeRowPrefab,laserPrefab));
+        }
+        return duration;
+    }
+    private static string FormatLength(double seconds)
+    {
+        seconds=Math.Round(Math.Max(0,seconds),1);
+        return $"{(int)(seconds/60)}:{seconds%60:00.0}";
     }
     private void SelectEncounter()
     {

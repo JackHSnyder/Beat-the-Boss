@@ -11,14 +11,22 @@ public sealed class FiringTarget : MonoBehaviour
     [SerializeField] private bool returnToMainMenuOnHit;
 
     private Coroutine pendingReturn;
+    private BeatTheBoss.Poses.BossScore score;
     private static readonly HashSet<FiringTarget> activeTargets = new();
     internal static IReadOnlyCollection<FiringTarget> ActiveTargets => activeTargets;
 
     public float AngularTolerance => angularTolerance;
     public Vector3 WorldAimPoint => aimPoint != null ? aimPoint.position : transform.position;
 
-    internal void ReceiveLaserHit()
+    internal void ConfigureScore(BeatTheBoss.Poses.BossScore value)
+    { score = value; returnToMainMenuOnHit = false; }
+
+    internal void ReceiveLaserHit() => ReceiveLaserHit(WorldAimPoint);
+
+    internal void ReceiveLaserHit(Vector3 hitPosition)
     {
+        if (!isActiveAndEnabled) return;
+        if (score != null) { score.AwardHit(hitPosition); return; }
         if (!isActiveAndEnabled || !returnToMainMenuOnHit || pendingReturn != null)
             return;
 

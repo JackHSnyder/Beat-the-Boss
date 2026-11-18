@@ -2,9 +2,11 @@
 
 using System;
 using UnityEngine;
+using BeatTheBoss.Poses;
 
 public class MMPanelSwitch : MonoBehaviour
 {
+    public event Action SectionChanging;
     [Serializable]
     private sealed class Panel
     {
@@ -21,6 +23,7 @@ public class MMPanelSwitch : MonoBehaviour
     [SerializeField] private Panel levelSelect;
     [SerializeField] private Panel settings;
     [SerializeField] private Panel credits;
+    [SerializeField] private Panel completion;
     [SerializeField, Min(0f), Tooltip("Time in seconds for both panels to slide.")]
     private float slideDuration = 0.6f;
     [SerializeField, Tooltip("Shared active panel center height above the tracking floor.")]
@@ -34,7 +37,7 @@ public class MMPanelSwitch : MonoBehaviour
 
     private void Awake()
     {
-        Panel[] panels = { mainMenu, levelSelect, settings, credits };
+        Panel[] panels = { mainMenu, levelSelect, settings, credits, completion };
         foreach (Panel panel in panels)
         {
             if (panel == null || !panel.IsAssigned)
@@ -45,7 +48,7 @@ public class MMPanelSwitch : MonoBehaviour
             }
         }
 
-        activePanel = mainMenu;
+        activePanel = LevelCompletionSession.TakePresentation() ? completion : mainMenu;
         var rig = UnityEngine.Object.FindAnyObjectByType<OVRCameraRig>();
         if (rig != null && rig.centerEyeAnchor != null)
             headsetCamera = rig.centerEyeAnchor.GetComponent<Camera>();
@@ -71,6 +74,7 @@ public class MMPanelSwitch : MonoBehaviour
             return;
 
         incomingPanel = panel;
+        SectionChanging?.Invoke();
         elapsed = 0f;
         incomingPanel.content.position = incomingPanel.inactivePosition.position + Vector3.up * menuHeight.Offset;
         incomingPanel.root.SetActive(true);
