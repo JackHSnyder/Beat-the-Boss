@@ -19,10 +19,13 @@ MonoBehaviour:
   - id: attack
     title: Attack
     action: 0
+    defaultMove: SHOOT R
   - id: dash-left
     title: Dash Left
     action: 1
+    defaultMove: DashL
   - id: dash-right
     title: Dash Right
     action: 2
+    defaultMove: DashR
   importLegacyAssignments: 1

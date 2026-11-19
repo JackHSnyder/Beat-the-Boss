@@ -21,12 +21,10 @@ namespace BeatTheBoss.Poses
             internal AudioClip clip;
             internal GameObject prefab;
         }
-        [Serializable] private sealed class Removed { public List<string> ids = new(); }
         [Serializable] internal sealed class CharacterFile { public int version=1; public string id, title, prefab; }
         internal static string Root => Path.Combine(Application.persistentDataPath,"DownloadedAssets");
         internal static string SongsFolder => Path.Combine(Root,"Songs");
         internal static string CharactersFolder => Path.Combine(Root,"CharacterModels");
-        private static string RemovedPath => Path.Combine(Root,"removed-bundled-assets.json");
         private static readonly List<Asset> assets = new();
         private static readonly Dictionary<string,AssetBundle> bundles = new();
         private static bool initialized;
@@ -54,16 +52,16 @@ namespace BeatTheBoss.Poses
             try
             {
                 Directory.CreateDirectory(SongsFolder); Directory.CreateDirectory(CharactersFolder);
-                Removed removed=ReadRemoved();
+                // Packaged catalog entries are always available, including after an older version hid them.
                 var catalog=Resources.Load<GameAssetCatalog>("Game Asset Catalog");
                 if (catalog!=null)
                 {
                     foreach (var song in catalog.songs)
-                        if (song.clip!=null && !removed.ids.Contains(song.id))
-                            Add(new Asset {id=song.id,title=song.title,clip=song.clip});
+                        if (song.clip!=null)
+                            Add(new Asset {id=song.id,title=song.title,clip=song.clip,protectedAsset=true});
                     foreach (var model in catalog.characters)
-                        if (model.prefab!=null && (model.protectedAsset || !removed.ids.Contains(model.id)))
-                            Add(new Asset {id=model.id,title=model.title,prefab=model.prefab,character=true,protectedAsset=model.protectedAsset});
+                        if (model.prefab!=null)
+                            Add(new Asset {id=model.id,title=model.title,prefab=model.prefab,character=true,protectedAsset=true});
                 }
                 foreach (string file in Directory.EnumerateFiles(SongsFolder).OrderBy(p=>p,StringComparer.OrdinalIgnoreCase))
                 {
@@ -101,32 +99,19 @@ namespace BeatTheBoss.Poses
         private static void Add(Asset asset) { if (!assets.Any(a=>a.id==asset.id)) assets.Add(asset); }
         internal static bool ValidId(string id) => !string.IsNullOrWhiteSpace(id) && id.Length<=96 &&
             id.All(c=>c is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9' or '-' or '_' or '.');
-        private static Removed ReadRemoved()
-        {
-            var removed=File.Exists(RemovedPath)?JsonUtility.FromJson<Removed>(File.ReadAllText(RemovedPath)) ?? new Removed():new Removed();
-            removed.ids??=new List<string>();
-            return removed;
-        }
         internal static void Delete(string id)
         {
             Asset asset=Find(id) ?? throw new FileNotFoundException("This asset is no longer available.");
-            if (asset.protectedAsset || id==DefaultCharacter) throw new InvalidOperationException("StylizedCharacter cannot be deleted.");
+            if (asset.protectedAsset || id==DefaultCharacter) throw new UnauthorizedAccessException("Built-in music and characters cannot be deleted.");
             // If the equipped model is removed, fall back before unloading its package.
             if (asset.character && Equipped==id) Equip(DefaultCharacter);
-            if (asset.path==null)
+            if (asset.path==null) throw new UnauthorizedAccessException("Built-in assets cannot be deleted.");
+            if (asset.bundlePath!=null)
             {
-                var removed=ReadRemoved(); if (!removed.ids.Contains(id)) removed.ids.Add(id);
-                PoseStore.WriteJson(RemovedPath,removed,File.Exists(RemovedPath));
+                if (bundles.Remove(asset.bundlePath,out var bundle) && bundle!=null) bundle.Unload(false);
+                File.Delete(asset.bundlePath);
             }
-            else
-            {
-                if (asset.bundlePath!=null)
-                {
-                    if (bundles.Remove(asset.bundlePath,out var bundle) && bundle!=null) bundle.Unload(false);
-                    File.Delete(asset.bundlePath);
-                }
-                File.Delete(asset.path);
-            }
+            File.Delete(asset.path);
             Refresh();
         }
         internal static void Equip(string id)

@@ -17,12 +17,12 @@ namespace BeatTheBoss.Poses
             public MoveAnimation animation;
         }
 
-        internal static void Delete(string name) => File.Delete(PathFor(name));
+        internal static void Delete(string name) => BuiltInContent.Delete(PathFor(name));
 
         internal static string[] List() => PoseStore.ListFiles(DirectoryPath, Prefix);
         internal static string PathFor(string name) => PoseStore.NamedPath(DirectoryPath, Prefix, name, "animation");
 
-        internal static bool Exists(string name) => File.Exists(PathFor(SavedFileNames.Resolve("animation", name, PathFor)));
+        internal static bool Exists(string name) => BuiltInContent.Exists(PathFor(SavedFileNames.Resolve("animation", name, PathFor)));
         internal static void SaveDraft(string name, MoveAnimation animation, string previousName)
         {
             ValidateTake(animation);
@@ -32,7 +32,7 @@ namespace BeatTheBoss.Poses
 
         internal static MoveAnimation Load(string name)
         {
-            return ReadJson(File.ReadAllText(PathFor(SavedFileNames.Resolve("animation", name, PathFor))));
+            return ReadJson(BuiltInContent.ReadAllText(PathFor(SavedFileNames.Resolve("animation", name, PathFor))));
         }
 
         internal static MoveAnimation ReadJson(string json)

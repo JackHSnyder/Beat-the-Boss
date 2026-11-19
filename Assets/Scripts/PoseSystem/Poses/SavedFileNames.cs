@@ -12,7 +12,7 @@ namespace BeatTheBoss.Poses
         internal static string Resolve(string kind, string name, Func<string, string> path)
         {
             var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            while (!File.Exists(path(name)) && visited.Add(name))
+            while (!BuiltInContent.Exists(path(name)) && visited.Add(name))
             {
                 string next = PlayerPrefs.GetString(Key(kind, name), "");
                 if (string.IsNullOrEmpty(next)) break;
@@ -23,6 +23,8 @@ namespace BeatTheBoss.Poses
         internal static void Write(string kind, string previous, string name, Func<string,string> path, object value)
         {
             string destination = path(name);
+            BuiltInContent.RequireWritable(destination);
+            if (previous != null) BuiltInContent.RequireWritable(path(previous));
             if (previous == null) { PoseStore.WriteJson(destination, value, replace: false); return; }
             string source = path(previous);
             if (!File.Exists(source)) throw new FileNotFoundException("The original saved file no longer exists.", source);

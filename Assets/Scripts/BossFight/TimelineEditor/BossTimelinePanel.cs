@@ -35,6 +35,7 @@ namespace BeatTheBoss.Poses
             public RectTransform panel;
         }
         private Surface main, details, navigation;
+        private readonly System.Collections.Generic.List<(UnityEngine.UI.Button button, bool viewing)> contentButtons = new();
         private PosePanelLayout layout;
         private BossEditorEnvironment environment;
         private RectTransform track, drawings, playhead, properties, viewControls;
@@ -267,6 +268,8 @@ namespace BeatTheBoss.Poses
         private void Update()
         {
             if (!built) return;
+            contentButtons.RemoveAll(entry => entry.button == null);
+            foreach (var entry in contentButtons) entry.button.interactable = !workbench.IsReadOnly || entry.viewing;
             if (inHeadset != environment.InHeadset) Present(environment.InHeadset);
             if (inHeadset && OVRInput.GetDown(OVRInput.Button.Two,OVRInput.Controller.RTouch)) RequestRecenter();
             TickRecenter();
@@ -286,7 +289,7 @@ namespace BeatTheBoss.Poses
             float x = (workbench.Cursor-viewStart)*PixelsPerSecond;
             playhead.gameObject.SetActive(x>=0 && x<=GraphWidth); playhead.anchoredPosition = new Vector2(x,0);
             fileLabel.text = workbench.saveName+(workbench.Dirty ? " *" : "");
-            status.text = message ?? ((workbench.Dirty ? "Unsaved changes - " : "")+workbench.Status);
+            status.text = workbench.IsReadOnly ? "Built-in level · Read only" : message ?? ((workbench.Dirty ? "Unsaved changes - " : "")+workbench.Status);
         }
         internal static int Lane(BossController.ActionKind action) => action switch
         {
@@ -344,7 +347,7 @@ namespace BeatTheBoss.Poses
             workbench.Seek(workbench.Snapped(time)); view = "node"; message = null;
             workbench.Select(cue); return cue;
         }
-        internal void ShowDrag(BossController.Cue cue,float time) { dragCue = cue; dragTime = time; redraw = true; }
+        internal void ShowDrag(BossController.Cue cue,float time) { if (workbench.IsReadOnly) return; dragCue = cue; dragTime = time; redraw = true; }
         internal void Redraw() { dragCue = null; redraw = true; }
         private void OnChanged()
         {
@@ -580,6 +583,11 @@ namespace BeatTheBoss.Poses
         private TMP_Text Button(Transform parent,string name,float x,float y,float width,float height,UnityAction action,bool primary=false)
         {
             var label = layout.Button(parent,name,x,y,width,height,action,primary); label.fontSize = 17;
+            bool viewing = new[] { "Play", "Stop", "Files", "New timeline", "Back", "New", "Load", "Refresh", "Previous", "Next", "Encounter", "Zoom +", "Zoom -", "Earlier", "Later", "Animation", "Rotation", "Attacks", "Dummy", "Boss view", "Arena view", "Closer", "Further", "Orbit <", "Orbit >", "Recordings", "Main menu" }.Contains(name);
+            viewing |= view == "files" && files.Contains(name);
+            var button = label.GetComponentInParent<UnityEngine.UI.Button>(true);
+            contentButtons.Add((button, viewing));
+            button.interactable = !workbench.IsReadOnly || viewing;
             return label;
         }
         private static void Clear(Transform target)

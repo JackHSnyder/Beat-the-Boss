@@ -69,7 +69,7 @@ namespace BeatTheBoss.Poses
         private static string SelectionKey(string encounter) => "EncounterTimeline.Active." + encounter;
         internal static string ResolveName(string name) => SavedFileNames.Resolve("timeline",name,PathFor);
         internal static void ValidateName(string name) => PathFor(name);
-        internal static bool Exists(string name) => File.Exists(PathFor(ResolveName(name)));
+        internal static bool Exists(string name) => BuiltInContent.Exists(PathFor(ResolveName(name)));
         internal static string[] List() => PoseStore.ListFiles(DirectoryPath, "timeline-");
 
         internal static Document LoadForEncounter(string defaultName, out string name)
@@ -132,7 +132,7 @@ namespace BeatTheBoss.Poses
         internal static Document Load(string name)
         {
             name=ResolveName(name);
-            Document doc = JsonUtility.FromJson<Document>(File.ReadAllText(PathFor(name)));
+            Document doc = JsonUtility.FromJson<Document>(BuiltInContent.ReadAllText(PathFor(name)));
             Validate(doc);
             // Older files gain a deterministic identity, which is preserved on their next save or rename.
             doc.name=name;

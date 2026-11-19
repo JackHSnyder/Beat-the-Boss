@@ -1,0 +1,44 @@
+{
+    "version": 2,
+    "name": "SHOOT R",
+    "timeLimit": 1.1100000143051147,
+    "cooldown": 0.10000000149011612,
+    "steps": [
+        {
+            "kind": 0,
+            "poseName": "GUN R",
+            "actionWindow": 0.25,
+            "actions": [],
+            "timerMode": 0,
+            "timerSeconds": 0.0
+        },
+        {
+            "kind": 1,
+            "poseName": "",
+            "actionWindow": 0.15000000596046448,
+            "actions": [
+                {
+                    "boneId": "RightWrist",
+                    "kind": 1,
+                    "sampleSeconds": 0.10000000149011612,
+                    "velocity": {
+                        "x": -180.0,
+                        "y": 0.0,
+                        "z": 0.0
+                    },
+                    "directionMatters": true
+                }
+            ],
+            "timerMode": 0,
+            "timerSeconds": 0.0
+        }
+    ],
+    "animationName": "SHOOT RIGHT",
+    "animation": {
+        "frames": [],
+        "disabledCategories": [],
+        "excludedBones": [],
+        "playbackStart": 0.0,
+        "playbackEnd": 0.0
+    }
+}

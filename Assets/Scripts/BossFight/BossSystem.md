@@ -11,7 +11,7 @@ Orbit right moves to the observer's right when facing the center; left moves lef
 
 ## Timeline
 
-Click a track at the desired time to select it and position the playhead, then choose **Add node**. Select a node to edit it in the separate details panel. Animation nodes begin unassigned; choose **Saved animation** in their details to select a file. **Behavior** chooses the node mode, and only properties relevant to that mode are shown. Device animations take priority over bundled animation assets of the same name. **Refresh** reloads changed trims and bone exclusions. The sample PEW PECK was converted from the older recorded take into a standalone animation asset; the boss no longer reads Moves at runtime.
+Click a track at the desired time to select it and position the playhead, then choose **Add node**. Select a node to edit it in the separate details panel. Animation nodes begin unassigned; choose **Saved animation** in their details to select a file. **Behavior** chooses the node mode, and only properties relevant to that mode are shown. Protected recordings in Resources/BuiltInContent take priority over same-named device files. Other device animations take priority over scene fallback assets. **Refresh** reloads changed trims and bone exclusions. The sample PEW PECK was converted from the older recorded take into a standalone animation asset; the boss no longer reads Moves at runtime.
 
 Tracks:
 
@@ -34,7 +34,7 @@ Seeking uses the same 60 Hz simulation as playback, with substeps at node bounda
 
 ## Save and use in a fight
 
-The level panel's **New Level** button opens BossEditorScene with a blank, unsaved timeline. **Save** publishes it as a level file in `Application.persistentDataPath/BossTimelines`. **Refresh Levels** scans this folder and rebuilds the list, skipping unreadable files. The bundled example stays available until a saved file of the same name replaces its row.
+The level panel's **New Level** button opens BossEditorScene with a blank, unsaved timeline. **Save** publishes it as a level file in `Application.persistentDataPath/BossTimelines`. **Refresh Levels** scans this folder and rebuilds the list, skipping unreadable files. Protected built-in levels and recordings remain available on a fresh install, and same-named device files cannot replace them. Built-in levels open read-only; new levels remain editable. See ASSET_LIBRARY.md for packaging and Quest details.
 
 Click the timeline's name above the graph, or **Encounter > Name / Rename timeline**, to name or rename it. Desktop typing and an in-panel VR keyboard are supported. Choose Done to apply the draft name and Save to write it. The timeline filename and displayed level name match. Renames preserve the stable level ID, authored slots, and player loadout assignments; a name already used by another file is rejected. New levels copy the example's authored slot definitions, which players cannot change.
 

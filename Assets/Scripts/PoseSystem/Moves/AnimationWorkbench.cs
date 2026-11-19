@@ -13,6 +13,7 @@ namespace BeatTheBoss.Poses
         private string loadedName, savedState;
         private bool newDraft;
         internal string LoadedName => loadedName;
+        internal bool IsReadOnly => BuiltInContent.IsProtected("Animations", "animation-", loadedName);
         internal bool IsDirty => IsRecording || (savedState != null
             ? Name != loadedName || JsonUtility.ToJson(Draft) != savedState
             : newDraft || Draft != null || Name != "New animation");

@@ -71,6 +71,17 @@ namespace BeatTheBoss.Poses
         private void DrawEditor()
         {
             bool hasTake = animations.Draft?.HasFrames == true;
+            if (animations.IsReadOnly)
+            {
+                Button("New", 0, 0, 78, () => guard(() => { animations.New(); Draw(); }));
+                Button("Open", 86, 0, 78, () => { animations.HidePreview(); saved = animations.ListSaved(); view = View.Library; page = 0; Draw(); });
+                layout.Label(content, animations.Name + " · Built-in animation", 180, 0, 452, 40, 21, true);
+                layout.Label(content, "Read only", 0, 54, 632, 40, 19);
+                Button("Play preview", 0, 108, 310, () => animations.Play(animations.Draft));
+                Button("Hide preview", 322, 108, 310, animations.HidePreview);
+                Button("Frame preview", 0, 162, 310, framePreview.Invoke);
+                return;
+            }
             if (animations.IsRecording)
             {
                 layout.Label(content, animations.Name, 0, 0, 632, 40, 22, true);

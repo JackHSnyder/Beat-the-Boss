@@ -28,10 +28,10 @@ namespace BeatTheBoss.Poses
             string key = Key(level, slot);
             if (!PlayerPrefs.HasKey(key) && level.ImportLegacyAssignments && slot.Action != MoveSlot.None)
             {
-                PlayerPrefs.SetString(key, PlayerPrefs.GetString("MoveLoadout." + slot.Action, ""));
+                PlayerPrefs.SetString(key, PlayerPrefs.GetString("MoveLoadout." + slot.Action, slot.DefaultMove ?? ""));
                 PlayerPrefs.Save();
             }
-            string saved = PlayerPrefs.GetString(key, "");
+            string saved = PlayerPrefs.GetString(key, slot.DefaultMove ?? "");
             return string.IsNullOrWhiteSpace(saved) ? saved : MoveStore.ResolveName(saved);
         }
 

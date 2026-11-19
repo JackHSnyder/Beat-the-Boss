@@ -16,7 +16,7 @@ namespace BeatTheBoss.Poses
         internal static bool IsAttack(ActionKind action) => action is ActionKind.FireOrb or ActionKind.SpikeRow or ActionKind.FireLaser;
         [Serializable] public sealed class Recording
         {
-            [Tooltip("Saved animation name. Device recordings take precedence over the bundled JSON.")]
+            [Tooltip("Saved animation name. Protected Resources recordings take precedence over device files and scene fallback JSON.")]
             public string savedName;
             public TextAsset bundledJson;
             public MoveAnimation Load(UnityEngine.Object context)

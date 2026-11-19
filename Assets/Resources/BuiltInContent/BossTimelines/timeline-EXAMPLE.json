@@ -1,0 +1,253 @@
+{
+    "version": 1,
+    "name": "EXAMPLE",
+    "levelId": "timeline-BOSS TIMELINE",
+    "songId": "song-ethreal",
+    "bossModelId": "character-realistic",
+    "songDelay": 0.0,
+    "pointsPerHit": 100,
+    "targetPoints": 1000,
+    "endBasis": 0,
+    "loadoutSlots": [
+        {
+            "id": "attack",
+            "title": "Attack",
+            "action": 0,
+            "defaultMove": "SHOOT R"
+        },
+        {
+            "id": "dash-left",
+            "title": "Dash Left",
+            "action": 1,
+            "defaultMove": "DashL"
+        },
+        {
+            "id": "dash-right",
+            "title": "Dash Right",
+            "action": 2,
+            "defaultMove": "DashR"
+        }
+    ],
+    "idle": "IDLE",
+    "duration": 12.0,
+    "loop": false,
+    "dummyAngle": 90.0,
+    "events": [
+        {
+            "action": 1,
+            "time": 0.0,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": ""
+        },
+        {
+            "action": 3,
+            "time": 2.5,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": "SHOOT RIGHT"
+        },
+        {
+            "action": 0,
+            "time": 6.0,
+            "angle": 90.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": ""
+        },
+        {
+            "action": 3,
+            "time": 3.5,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": "SHOOT RIGHT"
+        },
+        {
+            "action": 1,
+            "time": 9.199999809265137,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": ""
+        },
+        {
+            "action": 8,
+            "time": 11.300000190734863,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": ""
+        },
+        {
+            "action": 8,
+            "time": 8.5,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": ""
+        },
+        {
+            "action": 8,
+            "time": 6.400000095367432,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": ""
+        },
+        {
+            "action": 8,
+            "time": 12.0,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": ""
+        },
+        {
+            "action": 8,
+            "time": 9.600000381469727,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": ""
+        },
+        {
+            "action": 9,
+            "time": 4.400000095367432,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": ""
+        },
+        {
+            "action": 8,
+            "time": 11.699999809265137,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": ""
+        },
+        {
+            "action": 3,
+            "time": 3.0,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": "SHOOT RIGHT"
+        },
+        {
+            "action": 9,
+            "time": 12.699999809265137,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": ""
+        },
+        {
+            "action": 8,
+            "time": 10.40000057220459,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": ""
+        },
+        {
+            "action": 8,
+            "time": 2.700000047683716,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": ""
+        },
+        {
+            "action": 8,
+            "time": 3.200000047683716,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": ""
+        },
+        {
+            "action": 8,
+            "time": 3.700000047683716,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": ""
+        },
+        {
+            "action": 3,
+            "time": 6.200000286102295,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": "SHOOT RIGHT"
+        },
+        {
+            "action": 3,
+            "time": 8.300000190734863,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": "SHOOT RIGHT"
+        },
+        {
+            "action": 3,
+            "time": 9.40000057220459,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": "SHOOT RIGHT"
+        },
+        {
+            "action": 3,
+            "time": 10.300000190734863,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": "SHOOT RIGHT"
+        },
+        {
+            "action": 3,
+            "time": 11.100000381469727,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": "SHOOT RIGHT"
+        },
+        {
+            "action": 3,
+            "time": 11.90000057220459,
+            "angle": 0.0,
+            "transitionSeconds": 0.0,
+            "transitionTiming": 0,
+            "speed": 1.0,
+            "animation": "SHOOT RIGHT"
+        }
+    ]
+}

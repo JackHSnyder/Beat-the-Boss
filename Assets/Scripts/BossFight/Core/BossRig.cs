@@ -61,6 +61,7 @@ namespace BeatTheBoss.Poses
             if (bones.Count == 0) MapStylized();
             bones.RemoveAll(b => b == null || b.joint == null || !UniversalSkeleton.TryGet(b.boneId, out _));
             bones.Sort((a, b) => Depth(a.joint).CompareTo(Depth(b.joint)));
+            CalibrateArmRestPose();
             foreach (Binding b in bones)
             {
                 b.bindRotation = Quaternion.Inverse(transform.rotation) * b.joint.rotation;
@@ -74,6 +75,56 @@ namespace BeatTheBoss.Poses
                 }
             }
             initialized = true;
+        }
+        private void CalibrateArmRestPose()
+        {
+            if (rigRoot.GetComponentInChildren<CharacterBoneMap>(true) == null) return;
+            var catalog=Resources.Load<GameAssetCatalog>("Game Asset Catalog");
+            var reference=catalog!=null?Array.Find(catalog.characters,c=>c.id==DownloadedAssetLibrary.DefaultCharacter)?.prefab:null;
+            if (reference==null) return;
+            var referenceBones=new Dictionary<string,Transform>();
+            foreach (Transform joint in reference.GetComponentsInChildren<Transform>(true))
+                if (BoneMappings.Avatar.TryGetValue(joint.name,out string id)) referenceBones[id]=joint;
+
+            // Universal recordings contain changes from a common T-pose. Native Meta
+            // models start in an A-pose: keeping that arm bend as the playback baseline
+            // bends their arms a second time and can carry each wrist across the torso.
+            // Pose only this instance into the reference arm directions before binding.
+            foreach (string side in new[] {"Left","Right"})
+            {
+                Align(side+"UpperArm",side+"Forearm");
+                Align(side+"Forearm",side+"Wrist");
+                Transform hand=Joint(side+"Wrist"),index=Joint(side+"IndexProximal"),little=Joint(side+"PinkyProximal");
+                if (hand==null || index==null || little==null ||
+                    !referenceBones.TryGetValue(side+"Wrist",out var refHand) ||
+                    !referenceBones.TryGetValue(side+"IndexProximal",out var refIndex) ||
+                    !referenceBones.TryGetValue(side+"PinkyProximal",out var refLittle)) continue;
+                if (PalmFrame(hand.position,index.position,little.position,out var current) &&
+                    PalmFrame(refHand.position,refIndex.position,refLittle.position,out var target))
+                {
+                    Quaternion desired=rigRoot.rotation*Quaternion.Inverse(reference.transform.rotation)*target;
+                    hand.rotation=desired*Quaternion.Inverse(current)*hand.rotation;
+                }
+            }
+
+            void Align(string parentId,string childId)
+            {
+                Transform parent=Joint(parentId),child=Joint(childId);
+                if (parent==null || child==null || !referenceBones.TryGetValue(parentId,out var refParent) ||
+                    !referenceBones.TryGetValue(childId,out var refChild)) return;
+                Vector3 direction=rigRoot.TransformDirection(reference.transform.InverseTransformDirection(refChild.position-refParent.position));
+                Vector3 current=child.position-parent.position;
+                if (current.sqrMagnitude>1e-8f && direction.sqrMagnitude>1e-8f)
+                    parent.rotation=Quaternion.FromToRotation(current,direction)*parent.rotation;
+            }
+        }
+        private static bool PalmFrame(Vector3 wrist,Vector3 index,Vector3 little,out Quaternion rotation)
+        {
+            Vector3 forward=(index+little)*.5f-wrist;
+            Vector3 normal=Vector3.Cross(index-little,forward);
+            rotation=Quaternion.identity;
+            if (forward.sqrMagnitude<1e-8f || normal.sqrMagnitude<1e-12f) return false;
+            rotation=Quaternion.LookRotation(forward,normal); return true;
         }
         private static int Depth(Transform t) { int n = 0; while (t.parent != null) { n++; t = t.parent; } return n; }
         public Transform Joint(string id) => bones.Find(b => b.boneId == id)?.joint;

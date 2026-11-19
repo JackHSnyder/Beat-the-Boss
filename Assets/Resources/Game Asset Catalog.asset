@@ -27,8 +27,8 @@ MonoBehaviour:
   - id: character-realistic
     title: RealisticCharacter
     prefab: {fileID: 5908669579253988712, guid: 084df26ad6ec4934e907a71743377c44, type: 3}
-    protectedAsset: 0
+    protectedAsset: 1
   - id: character-tony
     title: Tony
     prefab: {fileID: 7842382183517282239, guid: 46708fb7162670f47985e2ea5e810420, type: 3}
-    protectedAsset: 0
+    protectedAsset: 1

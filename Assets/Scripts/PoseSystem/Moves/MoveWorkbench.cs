@@ -15,6 +15,7 @@ namespace BeatTheBoss.Poses
         private PoseWorkbench workbench;
         private string loadedName, savedState;
         public string LoadedName => loadedName;
+        public bool IsReadOnly => BuiltInContent.IsProtected("Moves", "move-", loadedName);
         public bool IsDirty => Draft != null && (savedState == null || JsonUtility.ToJson(Draft) != savedState);
         public void DiscardChanges()
         {

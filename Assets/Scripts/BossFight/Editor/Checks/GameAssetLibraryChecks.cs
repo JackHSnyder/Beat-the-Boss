@@ -15,7 +15,7 @@ namespace BeatTheBoss.Poses
             DownloadedAssetLibrary.ValidateCharacter(DownloadedAssetLibrary.ResolveCharacter(DownloadedAssetLibrary.DefaultCharacter));
             bool rejected=false;
             try { DownloadedAssetLibrary.Delete(DownloadedAssetLibrary.DefaultCharacter); }
-            catch (InvalidOperationException) { rejected=true; }
+            catch (UnauthorizedAccessException) { rejected=true; }
             Require(rejected && DownloadedAssetLibrary.Find(DownloadedAssetLibrary.DefaultCharacter)!=null,"Default character could be deleted.");
             string token=Guid.NewGuid().ToString("N");
             string first=Path.Combine(DownloadedAssetLibrary.SongsFolder,"check-"+token+".wav");

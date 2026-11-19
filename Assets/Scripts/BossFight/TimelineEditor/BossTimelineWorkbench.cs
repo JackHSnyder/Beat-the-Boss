@@ -21,6 +21,7 @@ namespace BeatTheBoss.Poses
         private string savedState;
         private string sourceName, bundledSourceName, levelId;
         private LevelLoadout.Slot[] loadoutSlots;
+        public bool IsReadOnly => bundledSourceName != null || BuiltInContent.IsProtected("BossTimelines", "timeline-", sourceName);
         public bool IsNew => sourceName==null && bundledSourceName==null;
         public bool HasGameplayChanges => !IsNew && savedState!=null &&
             GameplayState(Capture()) != GameplayState(JsonUtility.FromJson<BossTimelineStore.Document>(savedState));
@@ -67,7 +68,7 @@ namespace BeatTheBoss.Poses
             doc.events.RemoveAll(e=>e.action==BossController.ActionKind.DummyAngle);
             return JsonUtility.ToJson(doc);
         }
-        private void BeforeEdit() { Playing = false; undo.Push(Serialize()); redo.Clear(); }
+        private bool BeforeEdit() { if (IsReadOnly) { Status = "Built-in level · Read only"; return false; } Playing = false; undo.Push(Serialize()); redo.Clear(); return true; }
         private void Edited()
         {
             boss.RebuildTimeline(); Cursor = Mathf.Min(Cursor, boss.TimelineDuration); boss.Seek(Cursor);
@@ -82,89 +83,89 @@ namespace BeatTheBoss.Poses
         public void Select(BossController.Cue cue) { Selected = cue; Changed?.Invoke(); }
         public void Add(BossController.ActionKind kind, string animation = null)
         {
-            BeforeEdit(); Selected = new BossController.Cue { time = Snapped(Cursor), action = kind, recording = new BossController.Recording { savedName = animation } };
+            if (!BeforeEdit()) return; Selected = new BossController.Cue { time = Snapped(Cursor), action = kind, recording = new BossController.Recording { savedName = animation } };
             boss.timeline.Add(Selected); Edited();
         }
         public void MoveSelected(float time)
-        { if (Selected == null) return; BeforeEdit(); Selected.time = Snapped(time); Edited(); }
+        { if (Selected == null) return; if (!BeforeEdit()) return; Selected.time = Snapped(time); Edited(); }
         public void SetSelectedAction(BossController.ActionKind action)
         {
             if (Selected == null || Selected.action == action)
                 return;
-            BeforeEdit();
+            if (!BeforeEdit()) return;
             Selected.action = action;
             Edited();
         }
         public void SetTransitionTiming(BossController.TransitionTiming timing)
         {
             if (Selected==null || !BossController.HasTransition(Selected.action) || Selected.transitionTiming==timing) return;
-            BeforeEdit(); Selected.transitionTiming=timing; Edited();
+            if (!BeforeEdit()) return; Selected.transitionTiming=timing; Edited();
         }
         public void SetTransitionSeconds(float seconds)
         {
             if (Selected==null || !BossController.HasTransition(Selected.action)) return;
-            BeforeEdit(); Selected.transitionSeconds=Mathf.Clamp(seconds,.01f,120); Edited();
+            if (!BeforeEdit()) return; Selected.transitionSeconds=Mathf.Clamp(seconds,.01f,120); Edited();
         }
         public void SetSelectedAnimation(string name)
         {
             if (Selected == null || Selected.action is not (BossController.ActionKind.PlayAnimation or BossController.ActionKind.SetIdle))
                 return;
-            BeforeEdit();
+            if (!BeforeEdit()) return;
             Selected.recording ??= new BossController.Recording();
             Selected.recording.savedName = name;
             Selected.recording.bundledJson = null;
             Edited();
         }
         public void AdjustAngle(float change)
-        { if (Selected == null || Selected.action is not (BossController.ActionKind.FaceAngle or BossController.ActionKind.DummyAngle)) return; BeforeEdit(); Selected.angle = Mathf.Repeat(Selected.angle + change, 360); Edited(); }
+        { if (Selected == null || Selected.action is not (BossController.ActionKind.FaceAngle or BossController.ActionKind.DummyAngle)) return; if (!BeforeEdit()) return; Selected.angle = Mathf.Repeat(Selected.angle + change, 360); Edited(); }
         public void SetSpeed(float speed)
-        { if (Selected == null || Selected.action != BossController.ActionKind.PlayAnimation) return; BeforeEdit(); Selected.speed = Mathf.Clamp(speed, .1f, 4); Edited(); }
+        { if (Selected == null || Selected.action != BossController.ActionKind.PlayAnimation) return; if (!BeforeEdit()) return; Selected.speed = Mathf.Clamp(speed, .1f, 4); Edited(); }
         public void DeleteSelected()
-        { if (Selected == null) return; BeforeEdit(); boss.timeline.Remove(Selected); Selected = null; Edited(); }
+        { if (Selected == null) return; if (!BeforeEdit()) return; boss.timeline.Remove(Selected); Selected = null; Edited(); }
         public void DuplicateSelected()
         {
             if (Selected == null) return;
-            BeforeEdit();
+            if (!BeforeEdit()) return;
             Selected = new BossController.Cue { action = Selected.action, time = Snapped(Selected.time + Mathf.Max(.1f, boss.ClipDuration(Selected))),
                 angle = Selected.angle, speed = Selected.speed, transitionTiming = Selected.transitionTiming, transitionSeconds = Selected.transitionSeconds, recording = new BossController.Recording { savedName = Selected.recording.savedName, bundledJson = Selected.recording.bundledJson } };
             boss.timeline.Add(Selected); Edited();
         }
-        public void SetIdle(string name) { BeforeEdit(); boss.idle.savedName = name; boss.idle.bundledJson = null; Edited(); }
+        public void SetIdle(string name) { if (!BeforeEdit()) return; boss.idle.savedName = name; boss.idle.bundledJson = null; Edited(); }
         public void SetSong(string id)
         {
-            BeforeEdit(); boss.songId=id;
+            if (!BeforeEdit()) return; boss.songId=id;
             if(string.IsNullOrWhiteSpace(id) && boss.endBasis==LevelEndBasis.Song)
             { boss.endBasis=LevelEndBasis.Timeline; boss.loop=false; }
             Edited();
         }
-        public void SetSongDelay(float seconds) { BeforeEdit(); boss.songDelay=Mathf.Clamp(seconds,0,3600); Edited(); }
-        public void SetPointsPerHit(int points) { BeforeEdit(); boss.pointsPerHit=Mathf.Clamp(points,1,1000000); Edited(); }
-        public void SetTargetPoints(int points) { BeforeEdit(); boss.targetPoints=Mathf.Clamp(points,1,1000000000); Edited(); }
+        public void SetSongDelay(float seconds) { if (!BeforeEdit()) return; boss.songDelay=Mathf.Clamp(seconds,0,3600); Edited(); }
+        public void SetPointsPerHit(int points) { if (!BeforeEdit()) return; boss.pointsPerHit=Mathf.Clamp(points,1,1000000); Edited(); }
+        public void SetTargetPoints(int points) { if (!BeforeEdit()) return; boss.targetPoints=Mathf.Clamp(points,1,1000000000); Edited(); }
         public void SetEndBasis(LevelEndBasis basis)
         {
             if(basis==LevelEndBasis.Song && string.IsNullOrWhiteSpace(boss.songId))
             { Status="Choose a song before using song length."; Changed?.Invoke(); return; }
-            BeforeEdit(); boss.endBasis=basis; boss.loop=basis!=LevelEndBasis.Timeline; Edited();
+            if (!BeforeEdit()) return; boss.endBasis=basis; boss.loop=basis!=LevelEndBasis.Timeline; Edited();
         }
         public void SetBossModel(string id)
         {
             try
             {
                 DownloadedAssetLibrary.ResolveCharacter(id);
-                BeforeEdit(); boss.SetCharacter(id); Edited();
+                if (!BeforeEdit()) return; boss.SetCharacter(id); Edited();
             }
             catch (Exception e) when (AnimationStore.IsFileError(e)) { Status=e.Message; Changed?.Invoke(); }
         }
-        public void SetDuration(float value) { BeforeEdit(); boss.loopDuration = Mathf.Clamp(value, 1, 120); Edited(); }
-        public void ToggleLoop() { BeforeEdit(); boss.loop = !boss.loop; Edited(); }
-        public void SetDummyStart(float angle) { BeforeEdit(); boss.dummyStartAngle = Mathf.Repeat(angle, 360); Edited(); }
-        public void ReloadAnimations() { Edited(); Status = "Animation library refreshed."; }
+        public void SetDuration(float value) { if (!BeforeEdit()) return; boss.loopDuration = Mathf.Clamp(value, 1, 120); Edited(); }
+        public void ToggleLoop() { if (!BeforeEdit()) return; boss.loop = !boss.loop; Edited(); }
+        public void SetDummyStart(float angle) { if (!BeforeEdit()) return; boss.dummyStartAngle = Mathf.Repeat(angle, 360); Edited(); }
+        public void ReloadAnimations() { if (!IsReadOnly) Edited(); Status = "Animation library refreshed."; }
         public bool SetName(string value)
         {
             try
             {
                 value=(value??"").Trim(); BossTimelineStore.ValidateName(value);
-                if (value!=saveName) { BeforeEdit(); saveName=value; Edited(); }
+                if (value!=saveName) { if (!BeforeEdit()) return false; saveName=value; Edited(); }
                 return true;
             }
             catch (Exception e) when (AnimationStore.IsFileError(e)) { Status=e.Message; Changed?.Invoke(); return false; }
@@ -175,6 +176,7 @@ namespace BeatTheBoss.Poses
         public bool TrySaveAsNew() => CommitSave(true,true);
         private bool CommitSave(bool asNew,bool choiceMade)
         {
+            if (IsReadOnly) { Status = "Built-in levels cannot be edited or overwritten."; Changed?.Invoke(); return false; }
             try
             {
                 bool gameplayChanged=HasGameplayChanges;
@@ -239,6 +241,7 @@ namespace BeatTheBoss.Poses
         }
         public void Undo(bool forward = false)
         {
+            if (IsReadOnly) return;
             var source = forward ? redo : undo; var destination = forward ? undo : redo;
             if (source.Count == 0) return;
             Playing = false; destination.Push(Serialize());

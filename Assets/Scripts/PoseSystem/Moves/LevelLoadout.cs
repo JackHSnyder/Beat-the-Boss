@@ -17,7 +17,9 @@ namespace BeatTheBoss.Poses
 
             public string Id => id;
             public string Title => title;
+            [SerializeField] private string defaultMove;
             public MoveSlot Action => action;
+            internal string DefaultMove { get => defaultMove; set => defaultMove = value; }
         }
 
         [SerializeField, Tooltip("Unique, stable identifier for this level's saved assignments.")]

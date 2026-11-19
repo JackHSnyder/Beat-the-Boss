@@ -1,0 +1,44 @@
+{
+    "version": 2,
+    "name": "DashR",
+    "timeLimit": 1.0,
+    "cooldown": 1.5,
+    "steps": [
+        {
+            "kind": 0,
+            "poseName": "ELBOW R",
+            "actionWindow": 0.25,
+            "actions": [],
+            "timerMode": 0,
+            "timerSeconds": 0.0
+        },
+        {
+            "kind": 1,
+            "poseName": "",
+            "actionWindow": 0.25,
+            "actions": [
+                {
+                    "boneId": "RightForearm",
+                    "kind": 0,
+                    "sampleSeconds": 0.30000001192092896,
+                    "velocity": {
+                        "x": 0.30000001192092896,
+                        "y": 0.0,
+                        "z": 0.0
+                    },
+                    "directionMatters": true
+                }
+            ],
+            "timerMode": 0,
+            "timerSeconds": 0.0
+        }
+    ],
+    "animationName": "DASH R",
+    "animation": {
+        "frames": [],
+        "disabledCategories": [],
+        "excludedBones": [],
+        "playbackStart": 0.0,
+        "playbackEnd": 0.0
+    }
+}

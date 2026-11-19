@@ -20,13 +20,13 @@ namespace BeatTheBoss.Poses
         internal static string[] ListFiles(string directory, string prefix)
         {
             if (!Directory.Exists(directory))
-                return Array.Empty<string>();
+                return BuiltInContent.Names(directory, prefix, Array.Empty<string>());
 
             var names = new List<string>();
             foreach (string path in Directory.EnumerateFiles(directory, prefix + "*.json"))
                 names.Add(Path.GetFileNameWithoutExtension(path).Substring(prefix.Length));
             names.Sort(StringComparer.OrdinalIgnoreCase);
-            return names.ToArray();
+            return BuiltInContent.Names(directory, prefix, names);
         }
 
         public void Save(SavedPose pose)
@@ -42,11 +42,11 @@ namespace BeatTheBoss.Poses
             SavedFileNames.Write("pose", previousName, pose.name, PathFor, pose);
         }
 
-        public void Delete(string name) => File.Delete(PathFor(name));
+        public void Delete(string name) => BuiltInContent.Delete(PathFor(name));
 
         public bool IsLegacy(string name)
         {
-            var header = JsonUtility.FromJson<SavedPose>(File.ReadAllText(PathFor(name)));
+            var header = JsonUtility.FromJson<SavedPose>(BuiltInContent.ReadAllText(PathFor(name)));
             return header?.version == 1;
         }
 
@@ -62,7 +62,7 @@ namespace BeatTheBoss.Poses
 
         public void PrepareLegacyReplacement(SavedPose pose)
         {
-            SavedPose previous = JsonUtility.FromJson<SavedPose>(File.ReadAllText(PathFor(pose.name)));
+            SavedPose previous = JsonUtility.FromJson<SavedPose>(BuiltInContent.ReadAllText(PathFor(pose.name)));
             if (previous.matchSettings != null)
             {
                 // Category IDs and angle tolerances carry over. Old direction axes were source-specific.
@@ -105,6 +105,7 @@ namespace BeatTheBoss.Poses
         // Write beside the destination so the final move or replacement can stay on the same filesystem.
         internal static void WriteJson(string path, object value, bool replace, string backup = null)
         {
+            BuiltInContent.RequireWritable(path);
             Directory.CreateDirectory(Path.GetDirectoryName(path));
             string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try
@@ -121,7 +122,7 @@ namespace BeatTheBoss.Poses
             }
         }
 
-        public SavedPose Load(string name) => ReadJson(File.ReadAllText(PathFor(SavedFileNames.Resolve("pose", name, PathFor))));
+        public SavedPose Load(string name) => ReadJson(BuiltInContent.ReadAllText(PathFor(SavedFileNames.Resolve("pose", name, PathFor))));
 
         internal static SavedPose ReadJson(string json)
         {

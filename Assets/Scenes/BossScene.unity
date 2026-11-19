@@ -725,7 +725,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3688242718601599743, guid: 4331820d52a0df940957166e6e6c253d, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 15.35
+      value: 17.47
       objectReference: {fileID: 0}
     - target: {fileID: 3688242718601599743, guid: 4331820d52a0df940957166e6e6c253d, type: 3}
       propertyPath: m_LocalRotation.w
@@ -794,7 +794,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FiringTarget
   angularTolerance: 15
   aimPoint: {fileID: 1537629969}
-  returnToMainMenuOnHit: 1
+  returnToMainMenuOnHit: 0
 --- !u!4 &560497588 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 3688242718601599743, guid: 4331820d52a0df940957166e6e6c253d, type: 3}
@@ -1729,6 +1729,7 @@ MonoBehaviour:
   bossModelId: character-stylized
   pointsPerHit: 100
   targetPoints: 1000
+  endBasis: 0
   songDelay: 0
   arena: {fileID: 800304876}
   player: {fileID: 862316900}

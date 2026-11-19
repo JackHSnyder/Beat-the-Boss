@@ -33,6 +33,7 @@ namespace BeatTheBoss.Poses
         private string loadedFileName, savedState;
         private bool captureSetup, legacyDraft;
         public string LoadedName => loadedFileName;
+        public bool IsReadOnly => BuiltInContent.IsProtected("Poses", "pose-", loadedFileName);
         public bool IsDirty => captureSetup || CapturePending || (LoadedPose != null &&
             (savedState == null || MatchProfile?.IsDirty == true || JsonUtility.ToJson(LoadedPose) != savedState));
         public void RenameDraft(string name)

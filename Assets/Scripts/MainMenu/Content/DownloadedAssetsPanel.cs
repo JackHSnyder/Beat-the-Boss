@@ -69,7 +69,7 @@ public sealed class DownloadedAssetsPanel : MonoBehaviour
         delete.interactable=chosen!=null && !chosen.protectedAsset;
         pager.text=$"{page+1} / {pages}";
         status.text=chosen==null?DownloadedAssetLibrary.Status:chosen.protectedAsset
-            ? chosen.title+" is the built-in fallback and cannot be deleted."
+            ? chosen.title+" is built in and cannot be deleted."
             : chosen.title+" selected.";
     }
     private void Equip()

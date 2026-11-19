@@ -67,7 +67,7 @@ namespace BeatTheBoss.Poses
             }
             if (view != "pose" || poses.LoadedPose == null) return;
             heading.text = poses.LoadedPose.name + (dirty ? " *" : "");
-            save.interactable = dirty;
+            save.interactable = dirty && !poses.IsReadOnly;
             preview.text = poses.Preview == null ? "Show avatar preview" : "Hide avatar preview";
             previewButton.interactable = poses.LoadedPose != null;
             frameButton.interactable = poses.Preview != null && poses.Preview.activeInHierarchy;
@@ -129,8 +129,9 @@ namespace BeatTheBoss.Poses
             heading = Button(poses.LoadedPose.name, 172, 0, 340, () => editName("Pose name", poses.LoadedPose.name, value =>
                 { poses.RenameDraft(value); Refresh(); }));
             save = Button("Save", 520, 0, 112, () => { poses.SavePose(); Draw(); }, true).GetComponentInParent<UnityEngine.UI.Button>(true);
-            Button("Bone matching  ›", 0, 64, 310, () => Show("matching"));
-            Button("Constraints  ›", 322, 64, 310, () => Show("constraints"));
+            Button("Bone matching  ›", 0, 64, 310, () => Show("matching")).GetComponentInParent<UnityEngine.UI.Button>(true).interactable = !poses.IsReadOnly;
+            Button("Constraints  ›", 322, 64, 310, () => Show("constraints")).GetComponentInParent<UnityEngine.UI.Button>(true).interactable = !poses.IsReadOnly;
+            heading.GetComponentInParent<UnityEngine.UI.Button>(true).interactable = !poses.IsReadOnly;
             preview = Button("Show avatar preview", 0, 118, 310, () =>
             {
                 if (poses.Preview == null) poses.ShowPreview(); else poses.HidePreview();
@@ -142,9 +143,9 @@ namespace BeatTheBoss.Poses
             match = layout.Label(content, "", 16, 194, 600, 38, 23, true);
             matchDetails = layout.Label(content, "", 16, 240, 600, 112, 18);
             matchDetails.alignment = TextAlignmentOptions.TopLeft;
-            if (poses.LoadedName != null)
+            if (poses.LoadedName != null && !poses.IsReadOnly)
                 Button("Delete saved pose", 0, 384, 240, () => Delete(poses.LoadedName));
-            layout.Label(content, "Preview and edit this pose, then Save to keep your changes.", 0, 438, 632, 46, 18);
+            layout.Label(content, poses.IsReadOnly ? "Built-in pose · Read only" : "Preview and edit this pose, then Save to keep your changes.", 0, 438, 632, 46, 18);
         }
         private void DrawCapture()
         {
@@ -182,7 +183,8 @@ namespace BeatTheBoss.Poses
                     if (poses.LegacyPoseName == name || poses.LoadedName == name)
                     { SynchronizeSelection(); Show(poses.LegacyPoseName == name ? "legacy" : "pose"); }
                 }));
-                Button("Delete", 520, 60+(i%PageSize)*52, 112, () => Delete(name));
+                if (!BuiltInContent.IsProtected("Poses", "pose-", name))
+                    Button("Delete", 520, 60+(i%PageSize)*52, 112, () => Delete(name));
             }
             if (pages <= 1) return;
             Button("Previous", 0, 388, 130, () => { page--; Draw(); });

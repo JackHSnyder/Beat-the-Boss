@@ -122,6 +122,20 @@ namespace BeatTheBoss.Poses
         private void DrawMove()
         {
             MoveDefinition move = moves.Draft;
+            if (moves.IsReadOnly)
+            {
+                Button("New", 0, 0, 78, NewMove);
+                Button("Open", 86, 0, 78, OpenSaved);
+                layout.Label(content, move.name + " · Built-in move", 180, 0, 452, 40, 22, true);
+                layout.Label(content, "Read only. Use Test to try this move.", 0, 54, 632, 44, 19);
+                Button(moves.Detector == null ? "Test" : "Stop", 0, 108, 307, () =>
+                {
+                    if (moves.Detector == null) moves.StartTest(); else moves.StopTest();
+                    Draw();
+                }, true);
+                if (moves.HasAnimation) Button("Play animation preview", 319, 108, 313, () => animations.Play(moves.GetAnimation()));
+                return;
+            }
             Button("New", 0, 0, 78, NewMove);
             Button("Open", 86, 0, 78, OpenSaved);
             Button(move.name + (moves.IsDirty ? " *" : ""), 172, 0, 270, () => editName("Move name", move.name, value =>
